@@ -1,0 +1,28 @@
+.DS_Store
+.vscode/
+
+# Local environment and secrets
+.env
+.env.*
+*.pem
+*.key
+*secret*
+application-local.yml
+
+# Node / Nx
+node_modules/
+.nx/
+
+# Gradle / Java
+.gradle/
+build/
+**/build/
+
+# Logs and runtime data
+*.log
+logs/
+tmp/
+data/
+minio-data/
+postgres-data/
+temporal-data/

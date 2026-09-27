@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AegisFlow Control Panel Wireframe</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-soft: #f1f4f8;
+      --text: #172033;
+      --muted: #667085;
+      --border: #d9dee8;
+      --primary: #2764e7;
+      --green: #168a4a;
+      --amber: #b7791f;
+      --red: #c2413b;
+      --ink: #26344d;
+      --shadow: 0 12px 28px rgba(23, 32, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 248px 1fr;
+    }
+
+    .sidebar {
+      background: #172033;
+      color: #d8deea;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #ffffff;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: #2764e7;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+    }
+
+    .nav-item {
+      min-height: 38px;
+      padding: 9px 10px;
+      border-radius: 7px;
+      color: #b9c2d3;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-item.active {
+      background: rgba(255, 255, 255, 0.11);
+      color: #ffffff;
+    }
+
+    .badge {
+      min-width: 24px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #eef3ff;
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      color: #d8deea;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .main {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      min-height: 72px;
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .page-title {
+      min-width: 220px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 21px;
+      line-height: 1.2;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .search {
+      flex: 1;
+      min-width: 180px;
+      height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      color: var(--muted);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .button {
+      height: 38px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--ink);
+      padding: 0 12px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .button.primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #ffffff;
+    }
+
+    .content {
+      padding: 20px 24px 28px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .panel,
+    .metric,
+    .project-card,
+    .message,
+    .artifact-row,
+    .queue-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .metric {
+      min-height: 104px;
+      padding: 15px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .metric-value {
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .metric-foot {
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(250px, 300px) minmax(460px, 1fr) minmax(300px, 360px);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      overflow: hidden;
+    }
+
+    .panel-header {
+      min-height: 50px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .panel-body {
+      padding: 14px 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .pipeline {
+      display: grid;
+      gap: 8px;
+    }
+
+    .step {
+      min-height: 42px;
+      display: grid;
+      grid-template-columns: 22px 1fr auto;
+      align-items: center;
+      gap: 9px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      justify-self: center;
+    }
+
+    .step.done .dot {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .step.active {
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .step.active .dot {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px #dfe8ff;
+    }
+
+    .step.waiting .dot {
+      background: var(--amber);
+      border-color: var(--amber);
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--surface-soft);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .tag.green {
+      background: #e7f6ed;
+      color: var(--green);
+    }
+
+    .tag.amber {
+      background: #fff3d8;
+      color: var(--amber);
+    }
+
+    .tag.red {
+      background: #ffe7e5;
+      color: var(--red);
+    }
+
+    .tag.blue {
+      background: #e8efff;
+      color: var(--primary);
+    }
+
+    .project-card {
+      padding: 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .project-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+    }
+
+    .project-name {
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .decision-band {
+      border: 1px solid #f2d08c;
+      border-radius: 8px;
+      background: #fff8e8;
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .decision-actions {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .decision-actions .button {
+      width: 100%;
+      font-size: 12px;
+      padding: 0 8px;
+    }
+
+    .review-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .review-tile {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 108px;
+      display: grid;
+      gap: 8px;
+      background: #fbfcfe;
+    }
+
+    .review-tile h3 {
+      font-size: 13px;
+      line-height: 1.25;
+    }
+
+    .review-tile .count {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .artifact-row {
+      box-shadow: none;
+      min-height: 54px;
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .artifact-row strong {
+      font-size: 13px;
+    }
+
+    .artifact-row span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .queue-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .queue-row {
+      box-shadow: none;
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .message {
+      box-shadow: none;
+      padding: 12px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .message-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .composer {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      min-height: 92px;
+      padding: 12px;
+      color: var(--muted);
+      background: #fbfcfe;
+    }
+
+    .agent-run {
+      border-left: 3px solid var(--primary);
+      padding: 10px 0 10px 12px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .source-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .source {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fbfcfe;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    @media (max-width: 1180px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .top-actions {
+        flex-wrap: wrap;
+      }
+
+      .kpi-grid,
+      .review-grid,
+      .decision-actions {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <span>AegisFlow</span>
+      </div>
+      <nav class="nav">
+        <div class="nav-item active"><span>Dashboard</span></div>
+        <div class="nav-item"><span>Projects</span><span class="badge">18</span></div>
+        <div class="nav-item"><span>Review Queue</span><span class="badge">7</span></div>
+        <div class="nav-item"><span>Project Rooms</span></div>
+        <div class="nav-item"><span>Jira Drafts</span><span class="badge">4</span></div>
+        <div class="nav-item"><span>Agent Runs</span></div>
+        <div class="nav-item"><span>Knowledge</span></div>
+        <div class="nav-item"><span>Audit</span></div>
+      </nav>
+      <div class="sidebar-footer">
+        <strong>Governance mode</strong>
+        <p class="subtle">Human approval required for technical and PM gates.</p>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-title">
+          <h1>Control Panel</h1>
+          <p class="subtle">Portfolio truth, review ownership, and project communication.</p>
+        </div>
+        <div class="search">Search project, BRD, artifact, Jira draft, or decision</div>
+        <div class="top-actions">
+          <button class="button">Review Queue</button>
+          <button class="button primary">Submit BRD</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="kpi-grid">
+          <article class="metric">
+            <div class="metric-label">Active projects</div>
+            <div class="metric-value">18</div>
+            <div class="metric-foot">6 waiting for humans</div>
+          </article>
+          <article class="metric">
+            <div class="metric-label">Technical reviews</div>
+            <div class="metric-value">4</div>
+            <div class="metric-foot">Oldest pending 2d 4h</div>
+          </article>
+          <article class="metric">
+            <div class="metric-label">PM approvals</div>
+            <div class="metric-value">3</div>
+            <div class="metric-foot">2 Jira drafts ready</div>
+          </article>
+          <article class="metric">
+            <div class="metric-label">Agent cost this month</div>
+            <div class="metric-value">$428</div>
+            <div class="metric-foot">12% below budget</div>
+          </article>
+        </div>
+
+        <div class="workspace">
+          <section class="panel" aria-label="Project lifecycle">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Lifecycle Truth</div>
+                <p class="subtle">Dynamic QRIS Payment</p>
+              </div>
+              <span class="tag amber">Waiting</span>
+            </div>
+            <div class="panel-body">
+              <div class="pipeline">
+                <div class="step done"><span class="dot"></span><span>BRD Submitted</span><span class="tag">v3</span></div>
+                <div class="step done"><span class="dot"></span><span>BRD Analysis</span><span class="tag green">Done</span></div>
+                <div class="step done"><span class="dot"></span><span>Requirement Analysis</span><span class="tag">v2</span></div>
+                <div class="step done"><span class="dot"></span><span>Architecture Analysis</span><span class="tag">v4</span></div>
+                <div class="step done"><span class="dot"></span><span>System Analysis</span><span class="tag">v3</span></div>
+                <div class="step active waiting"><span class="dot"></span><span>Human Technical Review</span><span class="tag amber">Action</span></div>
+                <div class="step"><span class="dot"></span><span>Estimation</span><span></span></div>
+                <div class="step"><span class="dot"></span><span>Jira Draft</span><span></span></div>
+                <div class="step"><span class="dot"></span><span>PM Approval</span><span></span></div>
+                <div class="step"><span class="dot"></span><span>Jira Created</span><span></span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="project-card" aria-label="Project command room">
+            <div class="project-head">
+              <div>
+                <div class="project-name">Dynamic QRIS Payment</div>
+                <p class="subtle">PRJ-001 / BRD v3 / Payment / PII review required</p>
+              </div>
+              <span class="tag blue">Technical Review</span>
+            </div>
+
+            <div class="decision-band">
+              <div>
+                <strong>Decision required from Digital Architecture and System Analyst</strong>
+                <p class="subtle">Review Architecture Analysis v4, System Analysis v3, and Requirement Analysis v2. Workflow is paused until a valid decision is submitted.</p>
+              </div>
+              <div class="decision-actions">
+                <button class="button primary">Approve</button>
+                <button class="button">Approve with Change</button>
+                <button class="button">Request Clarification</button>
+                <button class="button">Reject</button>
+              </div>
+            </div>
+
+            <div class="review-grid">
+              <article class="review-tile">
+                <h3>Requirement Issues</h3>
+                <div class="count">9</div>
+                <p class="subtle">3 blocking clarification questions</p>
+              </article>
+              <article class="review-tile">
+                <h3>Architecture Risks</h3>
+                <div class="count">5</div>
+                <p class="subtle">Existing service reuse recommended</p>
+              </article>
+              <article class="review-tile">
+                <h3>System Impacts</h3>
+                <div class="count">7</div>
+                <p class="subtle">API, event, ledger, notification</p>
+              </article>
+            </div>
+
+            <section class="panel" aria-label="Review bundle">
+              <div class="panel-header">
+                <div class="panel-title">Review Bundle</div>
+                <span class="tag green">Schemas valid</span>
+              </div>
+              <div class="panel-body">
+                <div class="artifact-row">
+                  <div><strong>Architecture Analysis v4</strong><br><span>Investigated existing API, service, event, database, and architecture pattern.</span></div>
+                  <span class="tag amber">83%</span>
+                </div>
+                <div class="artifact-row">
+                  <div><strong>System Analysis v3</strong><br><span>Sequence flows, API contracts, data flow, retry and reversal scenarios.</span></div>
+                  <span class="tag blue">Open</span>
+                </div>
+                <div class="artifact-row">
+                  <div><strong>Requirement Analysis v2</strong><br><span>Acceptance criteria, edge cases, SLA and reconciliation questions.</span></div>
+                  <span class="tag red">3 gaps</span>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <aside class="panel" aria-label="Stakeholder communication">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Project Room</div>
+                <p class="subtle">Messages anchored to decisions</p>
+              </div>
+              <span class="tag blue">6 online</span>
+            </div>
+            <div class="panel-body">
+              <div class="message">
+                <div class="message-head"><strong>Architecture Agent</strong><span>10:21</span></div>
+                <p>Existing Payment Orchestration Service appears reusable. New service is not recommended unless QRIS reversal latency requires isolation.</p>
+                <span class="tag">Architecture Analysis v4</span>
+              </div>
+              <div class="message">
+                <div class="message-head"><strong>System Analyst</strong><span>10:38</span></div>
+                <p>Please confirm timeout behavior for issuer callback and settlement reconciliation window.</p>
+                <span class="tag amber">Clarification</span>
+              </div>
+              <div class="message">
+                <div class="message-head"><strong>Project Manager</strong><span>11:04</span></div>
+                <p>Once technical review is approved, I need unknowns separated from committed scope before Jira draft.</p>
+                <span class="tag">PM note</span>
+              </div>
+              <div class="composer">Write a project comment, mention a stakeholder, or answer a clarification question.</div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="workspace">
+          <section class="panel">
+            <div class="panel-header">
+              <div class="panel-title">My Review Queue</div>
+              <span class="tag">7 items</span>
+            </div>
+            <div class="panel-body queue-list">
+              <div class="queue-row">
+                <div><strong>Dynamic QRIS Payment</strong><br><span class="subtle">Technical Review / waiting 2d 4h</span></div>
+                <span class="tag amber">Due</span>
+              </div>
+              <div class="queue-row">
+                <div><strong>Merchant Limit Update</strong><br><span class="subtle">PM Approval / Jira draft v1</span></div>
+                <span class="tag blue">Ready</span>
+              </div>
+              <div class="queue-row">
+                <div><strong>Dispute Evidence Upload</strong><br><span class="subtle">Clarification / business owner needed</span></div>
+                <span class="tag red">Blocked</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div class="panel-title">Agent Evidence</div>
+              <span class="tag green">Audited</span>
+            </div>
+            <div class="panel-body">
+              <div class="agent-run">
+                <strong>Architecture Agent / exec-001</strong>
+                <span class="subtle">Prompt architecture-agent@2026.09.12 / model gpt-5 / 2m 31s / $0.42</span>
+              </div>
+              <div class="agent-run">
+                <strong>System Analyst Agent / exec-002</strong>
+                <span class="subtle">3 tool calls / 7 source citations / schema valid</span>
+              </div>
+              <div class="agent-run">
+                <strong>Requirement Analyst Agent / exec-003</strong>
+                <span class="subtle">Detected SLA, timeout, reversal, and audit gaps</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div class="panel-title">Knowledge Sources</div>
+              <span class="tag">Authoritative</span>
+            </div>
+            <div class="panel-body source-list">
+              <div class="source"><span>Service Catalog</span><span class="tag green">Fresh</span></div>
+              <div class="source"><span>API Catalog</span><span class="tag green">Fresh</span></div>
+              <div class="source"><span>Architecture Standards</span><span class="tag">v12</span></div>
+              <div class="source"><span>Previous Projects</span><span class="tag amber">Supporting</span></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,65 @@
+{
+  "name": "api",
+  "root": "apps/api",
+  "projectType": "application",
+  "metadata": {
+    "technologies": [
+      "java",
+      "spring-boot",
+      "gradle"
+    ]
+  },
+  "targets": {
+    "serve": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": ".",
+        "command": "./gradlew :apps:api:bootRun"
+      }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "production",
+        "^production"
+      ],
+      "outputs": [
+        "{workspaceRoot}/apps/api/build"
+      ],
+      "options": {
+        "cwd": ".",
+        "command": "./gradlew :apps:api:build"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": [
+        "default",
+        "^production"
+      ],
+      "outputs": [
+        "{workspaceRoot}/apps/api/build/test-results",
+        "{workspaceRoot}/apps/api/build/reports/tests"
+      ],
+      "options": {
+        "cwd": ".",
+        "command": "./gradlew :apps:api:test"
+      }
+    },
+    "clean": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "cwd": ".",
+        "command": "./gradlew :apps:api:clean"
+      }
+    }
+  },
+  "tags": [
+    "scope:api",
+    "type:application"
+  ]
+}

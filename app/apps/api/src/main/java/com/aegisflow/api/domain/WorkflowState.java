@@ -1,0 +1,14 @@
+package com.aegisflow.api.domain;
+
+public enum WorkflowState {
+    BRD_SUBMITTED,
+    BRD_ANALYSIS,
+    REQUIREMENT_ANALYSIS,
+    ARCHITECTURE_ANALYSIS,
+    SYSTEM_ANALYSIS,
+    HUMAN_TECHNICAL_REVIEW,
+    ESTIMATION,
+    JIRA_DRAFT,
+    HUMAN_PM_APPROVAL,
+    JIRA_CREATED
+}

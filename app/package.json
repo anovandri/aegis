@@ -1,0 +1,14 @@
+{
+  "name": "aegisflow",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "nx": "nx",
+    "api:serve": "nx serve api",
+    "api:test": "nx test api",
+    "api:build": "nx build api"
+  },
+  "devDependencies": {
+    "nx": "^22.0.0"
+  }
+}
