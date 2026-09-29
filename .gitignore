@@ -26,3 +26,5 @@ data/
 minio-data/
 postgres-data/
 temporal-data/
+
+*.class

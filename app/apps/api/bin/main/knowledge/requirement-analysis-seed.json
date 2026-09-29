@@ -1,0 +1,52 @@
+[
+  {
+    "sourceId": "previous-project-qris-static-to-dynamic",
+    "sourceTitle": "Previous Project: Static to Dynamic QRIS Migration",
+    "sourceType": "PREVIOUS_PROJECT",
+    "authority": "SUPPORTING",
+    "allowedAgents": ["Requirement Analyst Agent"],
+    "workflowStates": ["REQUIREMENT_ANALYSIS"],
+    "tags": ["qris", "qr", "payment", "merchant", "reversal", "reconciliation", "timeout"],
+    "excerpt": "Prior QRIS migration required explicit QR expiry, duplicate payment prevention, reversal handling, settlement reconciliation, and merchant notification requirements before architecture review."
+  },
+  {
+    "sourceId": "previous-project-merchant-limit-update",
+    "sourceTitle": "Previous Project: Merchant Limit Update",
+    "sourceType": "PREVIOUS_PROJECT",
+    "authority": "SUPPORTING",
+    "allowedAgents": ["Requirement Analyst Agent"],
+    "workflowStates": ["REQUIREMENT_ANALYSIS"],
+    "tags": ["merchant", "limit", "approval", "audit", "backoffice"],
+    "excerpt": "Merchant limit changes previously needed maker-checker approval, audit trail, effective date, rollback behavior, and clear ownership of limit source of truth."
+  },
+  {
+    "sourceId": "incident-payment-timeout-reconciliation",
+    "sourceTitle": "Incident Pattern: Payment Timeout Reconciliation Gap",
+    "sourceType": "INCIDENT_PATTERN",
+    "authority": "SUPPORTING",
+    "allowedAgents": ["Requirement Analyst Agent"],
+    "workflowStates": ["REQUIREMENT_ANALYSIS"],
+    "tags": ["payment", "timeout", "retry", "reconciliation", "incident"],
+    "excerpt": "Past payment timeout incidents were caused by unclear retry ownership and missing reconciliation SLA. Requirements should identify retryable operations, timeout windows, final-state reconciliation, and manual operations fallback."
+  },
+  {
+    "sourceId": "standard-payment-nfr-checklist",
+    "sourceTitle": "Payment Requirement NFR Checklist",
+    "sourceType": "REQUIREMENT_STANDARD",
+    "authority": "AUTHORITATIVE",
+    "allowedAgents": ["Requirement Analyst Agent"],
+    "workflowStates": ["REQUIREMENT_ANALYSIS"],
+    "tags": ["payment", "sla", "tps", "latency", "availability", "audit", "security"],
+    "excerpt": "Payment requirements must specify expected TPS, peak TPS, latency target, availability target, audit events, security classification, timeout behavior, retry policy, reversal flow, and reconciliation reporting."
+  },
+  {
+    "sourceId": "uat-pattern-ambiguous-status",
+    "sourceTitle": "UAT Pattern: Ambiguous Transaction Status",
+    "sourceType": "UAT_LESSON",
+    "authority": "SUPPORTING",
+    "allowedAgents": ["Requirement Analyst Agent"],
+    "workflowStates": ["REQUIREMENT_ANALYSIS"],
+    "tags": ["transaction", "status", "uat", "payment", "edge"],
+    "excerpt": "Previous UAT cycles often found ambiguity around pending, failed, expired, reversed, and settled statuses. Requirements should define each status, transition trigger, user-facing message, and operational handling."
+  }
+]

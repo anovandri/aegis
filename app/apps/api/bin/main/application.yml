@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: aegisflow-api
+  datasource:
+    url: ${AEGISFLOW_DATABASE_URL:jdbc:postgresql://localhost:5432/aegisflow}
+    username: ${AEGISFLOW_DATABASE_USERNAME:aegisflow}
+    password: ${AEGISFLOW_DATABASE_PASSWORD:aegisflow-secret}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration,classpath:db/vendor/{vendor}
+
+server:
+  port: 8080
+
+aegisflow:
+  workflow:
+    mode: stub
+  temporal:
+    enabled: false
+    target: localhost:7233
+    namespace: default
+    task-queue: aegisflow-project-lifecycle
+  llm:
+    provider: local
+    openai:
+      model: gpt-4.1-mini
+      responses-url: https://api.openai.com/v1/responses
+      api-key: ${OPENAI_API_KEY:}
+  storage:
+    provider: minio
+    bucket: aegisflow-documents
+    endpoint: http://localhost:9000
+    access-key: aegisflow
+    secret-key: aegisflow-secret
+  knowledge:
+    embedding:
+      provider: local

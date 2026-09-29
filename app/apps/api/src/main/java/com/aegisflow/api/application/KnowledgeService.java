@@ -1,5 +1,7 @@
 package com.aegisflow.api.application;
 
+import com.aegisflow.api.infrastructure.knowledge.CodeKnowledgeParserRegistry;
+import com.aegisflow.api.infrastructure.knowledge.CodeKnowledgeUnit;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeDocument;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeDocumentRepository;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeDocumentVersion;
@@ -53,6 +55,7 @@ public class KnowledgeService {
     private final KnowledgeChunker knowledgeChunker;
     private final KnowledgeEmbeddingPort knowledgeEmbeddingPort;
     private final KnowledgeSourceAdapterRegistry knowledgeSourceAdapterRegistry;
+    private final CodeKnowledgeParserRegistry codeKnowledgeParserRegistry;
     private final ObjectMapper objectMapper;
 
     public KnowledgeService(
@@ -63,6 +66,7 @@ public class KnowledgeService {
             KnowledgeChunker knowledgeChunker,
             KnowledgeEmbeddingPort knowledgeEmbeddingPort,
             KnowledgeSourceAdapterRegistry knowledgeSourceAdapterRegistry,
+            CodeKnowledgeParserRegistry codeKnowledgeParserRegistry,
             ObjectMapper objectMapper
     ) {
         this.clock = clock;
@@ -72,6 +76,7 @@ public class KnowledgeService {
         this.knowledgeChunker = knowledgeChunker;
         this.knowledgeEmbeddingPort = knowledgeEmbeddingPort;
         this.knowledgeSourceAdapterRegistry = knowledgeSourceAdapterRegistry;
+        this.codeKnowledgeParserRegistry = codeKnowledgeParserRegistry;
         this.objectMapper = objectMapper;
     }
 
@@ -439,7 +444,13 @@ public class KnowledgeService {
         if (knowledgeDocumentRepository.hasChunks(document.documentId(), version.version())) {
             return;
         }
-        List<String> chunkTexts = knowledgeChunker.chunk(version.extractedText());
+        List<String> chunkTexts = codeKnowledgeParserRegistry
+                .findParser(version.fileName(), version.mediaType())
+                .map(parser -> parser.parse(version.fileName(), version.mediaType(), version.extractedText()).stream()
+                        .map(CodeKnowledgeUnit::toKnowledgeText)
+                        .toList())
+                .filter(chunks -> !chunks.isEmpty())
+                .orElseGet(() -> knowledgeChunker.chunk(version.extractedText()));
         List<KnowledgeChunk> chunks = new ArrayList<>();
         for (int index = 0; index < chunkTexts.size(); index++) {
             String chunkText = chunkTexts.get(index);
