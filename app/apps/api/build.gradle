@@ -20,6 +20,8 @@ dependencies {
     implementation 'io.temporal:temporal-sdk:1.35.0'
     implementation 'io.github.bonede:tree-sitter:0.26.3'
     implementation 'io.github.bonede:tree-sitter-go:0.25.0'
+    implementation 'org.apache.tika:tika-core:3.2.3'
+    implementation 'org.apache.tika:tika-parsers-standard-package:3.2.3'
     runtimeOnly 'com.h2database:h2'
     runtimeOnly 'org.postgresql:postgresql'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

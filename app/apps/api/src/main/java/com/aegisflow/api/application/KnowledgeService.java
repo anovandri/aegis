@@ -1,15 +1,12 @@
 package com.aegisflow.api.application;
 
-import com.aegisflow.api.infrastructure.knowledge.CodeKnowledgeParserRegistry;
-import com.aegisflow.api.infrastructure.knowledge.CodeKnowledgeUnit;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeDocument;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeDocumentRepository;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeDocumentVersion;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeAdapterDescriptor;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeAuditEvent;
-import com.aegisflow.api.infrastructure.knowledge.KnowledgeChunk;
-import com.aegisflow.api.infrastructure.knowledge.KnowledgeChunker;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeEmbeddingPort;
+import com.aegisflow.api.infrastructure.knowledge.KnowledgeIndexingPipeline;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSeedDocument;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceAdapter;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceAdapterRegistry;
@@ -52,10 +49,9 @@ public class KnowledgeService {
     private final DocumentStoragePort documentStoragePort;
     private final KnowledgeTextExtractor textExtractor;
     private final KnowledgeDocumentRepository knowledgeDocumentRepository;
-    private final KnowledgeChunker knowledgeChunker;
     private final KnowledgeEmbeddingPort knowledgeEmbeddingPort;
+    private final KnowledgeIndexingPipeline knowledgeIndexingPipeline;
     private final KnowledgeSourceAdapterRegistry knowledgeSourceAdapterRegistry;
-    private final CodeKnowledgeParserRegistry codeKnowledgeParserRegistry;
     private final ObjectMapper objectMapper;
 
     public KnowledgeService(
@@ -63,20 +59,18 @@ public class KnowledgeService {
             DocumentStoragePort documentStoragePort,
             KnowledgeTextExtractor textExtractor,
             KnowledgeDocumentRepository knowledgeDocumentRepository,
-            KnowledgeChunker knowledgeChunker,
             KnowledgeEmbeddingPort knowledgeEmbeddingPort,
+            KnowledgeIndexingPipeline knowledgeIndexingPipeline,
             KnowledgeSourceAdapterRegistry knowledgeSourceAdapterRegistry,
-            CodeKnowledgeParserRegistry codeKnowledgeParserRegistry,
             ObjectMapper objectMapper
     ) {
         this.clock = clock;
         this.documentStoragePort = documentStoragePort;
         this.textExtractor = textExtractor;
         this.knowledgeDocumentRepository = knowledgeDocumentRepository;
-        this.knowledgeChunker = knowledgeChunker;
         this.knowledgeEmbeddingPort = knowledgeEmbeddingPort;
+        this.knowledgeIndexingPipeline = knowledgeIndexingPipeline;
         this.knowledgeSourceAdapterRegistry = knowledgeSourceAdapterRegistry;
-        this.codeKnowledgeParserRegistry = codeKnowledgeParserRegistry;
         this.objectMapper = objectMapper;
     }
 
@@ -441,37 +435,7 @@ public class KnowledgeService {
     }
 
     private void indexVersion(KnowledgeDocument document, KnowledgeDocumentVersion version) {
-        if (knowledgeDocumentRepository.hasChunks(document.documentId(), version.version())) {
-            return;
-        }
-        List<String> chunkTexts = codeKnowledgeParserRegistry
-                .findParser(version.fileName(), version.mediaType())
-                .map(parser -> parser.parse(version.fileName(), version.mediaType(), version.extractedText()).stream()
-                        .map(CodeKnowledgeUnit::toKnowledgeText)
-                        .toList())
-                .filter(chunks -> !chunks.isEmpty())
-                .orElseGet(() -> knowledgeChunker.chunk(version.extractedText()));
-        List<KnowledgeChunk> chunks = new ArrayList<>();
-        for (int index = 0; index < chunkTexts.size(); index++) {
-            String chunkText = chunkTexts.get(index);
-            chunks.add(new KnowledgeChunk(
-                    UUID.randomUUID(),
-                    document.documentId(),
-                    document.sourceId(),
-                    document.sourceTitle(),
-                    document.sourceType(),
-                    document.authority(),
-                    document.allowedAgents(),
-                    document.workflowStates(),
-                    document.tags(),
-                    version.version(),
-                    index,
-                    chunkText,
-                    knowledgeEmbeddingPort.modelName(),
-                    knowledgeEmbeddingPort.embed(chunkText)
-            ));
-        }
-        knowledgeDocumentRepository.saveChunks(chunks);
+        knowledgeIndexingPipeline.index(document, version);
     }
 
     private KnowledgeSyncRun syncSource(KnowledgeSource source) {
