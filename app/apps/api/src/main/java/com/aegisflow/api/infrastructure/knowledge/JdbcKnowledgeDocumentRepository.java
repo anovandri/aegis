@@ -862,8 +862,11 @@ public class JdbcKnowledgeDocumentRepository implements KnowledgeDocumentReposit
                     COUNT(DISTINCT kc.chunk_id) AS chunk_count,
                     COUNT(DISTINCT kcu.usage_id) AS agent_use_count
                 FROM knowledge_sources ks
+                LEFT JOIN knowledge_synced_resource_documents ksrd
+                    ON ksrd.source_id = ks.source_id
                 LEFT JOIN knowledge_documents kd
                     ON kd.source_id = ks.source_id
+                    OR kd.document_id = ksrd.document_id
                 LEFT JOIN knowledge_chunks kc
                     ON kc.document_id = kd.document_id
                 LEFT JOIN knowledge_citation_usages kcu

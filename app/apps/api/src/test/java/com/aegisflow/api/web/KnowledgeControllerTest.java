@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -297,6 +298,109 @@ class KnowledgeControllerTest {
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.status").value("SUCCEEDED"))
                 .andExpect(jsonPath("$.recordsChanged").value(0));
+    }
+
+    @Test
+    void createKnowledgeDocumentIndexesGoSourceWithTreeSitterChunks() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "payment_orchestrator.go",
+                "text/x-go",
+                """
+                        package payment
+
+                        type PaymentRepository interface {
+                            Save(reference string) error
+                        }
+
+                        type PaymentService struct {
+                            repository PaymentRepository
+                        }
+
+                        func (service PaymentService) CreateDynamicQr(reference string) error {
+                            return service.repository.Save(reference)
+                        }
+
+                        func normalizeReference(reference string) string {
+                            return "QRIS-" + reference
+                        }
+                        """.getBytes(StandardCharsets.UTF_8)
+        );
+
+        mockMvc.perform(multipart("/api/knowledge/documents")
+                        .file(file)
+                        .param("sourceTitle", "Payment Orchestrator Source")
+                        .param("sourceId", "payment-orchestrator-source")
+                        .param("sourceType", "SOURCE_CODE")
+                        .param("authority", "SUPPORTING")
+                        .param("allowedAgents", "Requirement Analyst Agent,Architecture Agent")
+                        .param("workflowStates", "REQUIREMENT_ANALYSIS,ARCHITECTURE_ANALYSIS")
+                        .param("tags", "go,payment,qris"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.versions[0].extractedText", containsString("CreateDynamicQr")));
+
+        mockMvc.perform(get("/api/knowledge/search")
+                        .param("q", "CreateDynamicQr PaymentRepository dynamic QR")
+                        .param("agentName", "Architecture Agent")
+                        .param("workflowState", "ARCHITECTURE_ANALYSIS"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", not(empty())))
+                .andExpect(jsonPath("$[*].sourceTitle", hasItem("Payment Orchestrator Source")))
+                .andExpect(jsonPath("$[*].excerpt", hasItem(containsString("CreateDynamicQr"))));
+    }
+
+    @Test
+    void resourceContentEndpointReturnsFetchedAdapterPayload() throws Exception {
+        mockMvc.perform(post("/api/knowledge/sources")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "sourceId": "test-resource-content-source",
+                                  "name": "Test Resource Content Source",
+                                  "sourceType": "PREVIOUS_PROJECT",
+                                  "authority": "SUPPORTING",
+                                  "ownerTeam": "Architecture",
+                                  "freshnessSlaHours": 24,
+                                  "syncMode": "MANUAL_PULL",
+                                  "sensitivityPolicy": "INTERNAL",
+                                  "allowedAgents": ["Requirement Analyst Agent"],
+                                  "workflowStates": ["REQUIREMENT_ANALYSIS"],
+                                  "tags": ["resource-content-test"]
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        String connectionResponse = mockMvc.perform(post("/api/knowledge/sources/{sourceId}/connections", "test-resource-content-source")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "adapterType": "TEST_SYNC",
+                                  "connectionName": "Deterministic resource content adapter",
+                                  "resourceLocator": "test-resource-space",
+                                  "authType": "NONE",
+                                  "configJson": "{}"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String connectionId = connectionResponse.replaceAll(".*\\\"connectionId\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        String discoverResponse = mockMvc.perform(post("/api/knowledge/connections/{connectionId}/discover", connectionId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String resourceId = discoverResponse.replaceAll(".*\\\"resourceId\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+        mockMvc.perform(get("/api/knowledge/resources/{resourceId}/content", resourceId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fileName").value("deterministic-resource.md"))
+                .andExpect(jsonPath("$.mediaType").value("text/markdown"))
+                .andExpect(jsonPath("$.contentBase64").exists())
+                .andExpect(jsonPath("$.versionRef").value("v1"));
     }
 
     @TestConfiguration

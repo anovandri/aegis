@@ -605,7 +605,7 @@ public class KnowledgeService {
         KnowledgeDocumentVersion version = createVersion(documentId, 1, submittedDocument, now);
         KnowledgeDocument document = new KnowledgeDocument(
                 documentId,
-                source.sourceId(),
+                syncedDocumentSourceId(source.sourceId(), resource.externalId()),
                 resource.title(),
                 source.sourceType(),
                 source.authority(),
@@ -634,6 +634,11 @@ public class KnowledgeService {
     private String externalResourceKey(String sourceId, UUID connectionId, String externalId) {
         String naturalKey = "%s:%s:%s".formatted(sourceId, connectionId, externalId);
         return sha256(naturalKey.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String syncedDocumentSourceId(String sourceId, String externalId) {
+        String normalizedExternalId = externalId == null || externalId.isBlank() ? "resource" : externalId;
+        return "%s:%s".formatted(sourceId, sha256(normalizedExternalId.getBytes(StandardCharsets.UTF_8)).substring(0, 16));
     }
 
     private String syncStatus(int recordsChanged, List<String> failures) {
