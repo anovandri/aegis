@@ -10,6 +10,7 @@ import com.aegisflow.api.infrastructure.knowledge.KnowledgeConnectionCheckResult
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSource;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceConnection;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourcePayload;
+import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourcePreview;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceResource;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSummary;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSyncRun;
@@ -106,6 +107,12 @@ public class KnowledgeController {
     @GetMapping("/sources/{sourceId}")
     KnowledgeSource getSource(@PathVariable String sourceId) {
         return knowledgeService.findSource(sourceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Knowledge source not found"));
+    }
+
+    @GetMapping("/sources/{sourceId}/preview")
+    KnowledgeSourcePreview sourcePreview(@PathVariable String sourceId) {
+        return knowledgeService.previewSource(sourceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Knowledge source not found"));
     }
 

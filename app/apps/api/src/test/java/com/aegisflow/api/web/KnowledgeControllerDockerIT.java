@@ -257,6 +257,17 @@ class KnowledgeControllerDockerIT {
                 .andExpect(jsonPath("$.documentCount").value(2))
                 .andExpect(jsonPath("$.chunkCount").value(greaterThanOrEqualTo(2)));
 
+        mockMvc.perform(get("/api/knowledge/sources/{sourceId}/preview", "docker-sync-source"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source.sourceId").value("docker-sync-source"))
+                .andExpect(jsonPath("$.metrics[*].label", hasItem("Documents")))
+                .andExpect(jsonPath("$.metrics[*].label", hasItem("Resources")))
+                .andExpect(jsonPath("$.eligibility.status").value("ELIGIBLE"))
+                .andExpect(jsonPath("$.connections", hasSize(1)))
+                .andExpect(jsonPath("$.resources", hasSize(2)))
+                .andExpect(jsonPath("$.recentSyncRuns", hasSize(2)))
+                .andExpect(jsonPath("$.evidence[*].sourceTitle", hasItem("Docker Architecture Notes")));
+
         mockMvc.perform(get("/api/knowledge/audit").param("sourceId", "docker-sync-source"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", not(empty())))

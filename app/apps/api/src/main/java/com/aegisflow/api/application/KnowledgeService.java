@@ -11,9 +11,14 @@ import com.aegisflow.api.infrastructure.knowledge.KnowledgeSeedDocument;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceAdapter;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceAdapterRegistry;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeConnectionCheckResult;
+import com.aegisflow.api.infrastructure.knowledge.KnowledgeChunk;
+import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceEligibility;
+import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceEvidence;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSource;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceConnection;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourcePayload;
+import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourcePreview;
+import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourcePreviewMetric;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSourceResource;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSyncedResourceDocument;
 import com.aegisflow.api.infrastructure.knowledge.KnowledgeSummary;
@@ -224,6 +229,29 @@ public class KnowledgeService {
 
     public Optional<KnowledgeSource> findSource(String sourceId) {
         return knowledgeDocumentRepository.findSource(sourceId);
+    }
+
+    public Optional<KnowledgeSourcePreview> previewSource(String sourceId) {
+        return knowledgeDocumentRepository.findSource(sourceId)
+                .map(source -> {
+                    List<KnowledgeSourceConnection> sourceConnections = connections(sourceId);
+                    List<KnowledgeSourceResource> sourceResources = sourceConnections.stream()
+                            .flatMap(connection -> resources(connection.connectionId()).stream())
+                            .toList();
+                    List<KnowledgeSyncRun> sourceSyncRuns = syncRuns(sourceId).stream()
+                            .limit(5)
+                            .toList();
+                    List<KnowledgeChunk> sourceChunks = chunksForSource(sourceId);
+                    return new KnowledgeSourcePreview(
+                            source,
+                            previewMetrics(source, sourceConnections, sourceResources),
+                            eligibility(source, sourceConnections, sourceResources, sourceChunks),
+                            evidence(sourceChunks),
+                            sourceConnections,
+                            sourceResources,
+                            sourceSyncRuns
+                    );
+                });
     }
 
     public List<KnowledgeAdapterDescriptor> listAdapters() {
@@ -650,6 +678,97 @@ public class KnowledgeService {
 
     private String sourceStatus(String syncStatus) {
         return syncStatus.equals("SUCCEEDED") ? "FRESH" : "NEEDS_REVIEW";
+    }
+
+    private List<KnowledgeChunk> chunksForSource(String sourceId) {
+        String syncedDocumentPrefix = sourceId + ":";
+        return knowledgeDocumentRepository.findLatestChunks().stream()
+                .filter(chunk -> chunk.sourceId().equals(sourceId) || chunk.sourceId().startsWith(syncedDocumentPrefix))
+                .toList();
+    }
+
+    private List<KnowledgeSourcePreviewMetric> previewMetrics(
+            KnowledgeSource source,
+            List<KnowledgeSourceConnection> connections,
+            List<KnowledgeSourceResource> resources
+    ) {
+        long ownerCount = source.ownerTeam() == null || source.ownerTeam().isBlank() ? 0 : 1;
+        return List.of(
+                new KnowledgeSourcePreviewMetric("Documents", source.documentCount(), "Indexed source documents"),
+                new KnowledgeSourcePreviewMetric("Chunks", source.chunkCount(), "Retrievable knowledge chunks"),
+                new KnowledgeSourcePreviewMetric("Resources", resources.size(), "Discovered upstream resources"),
+                new KnowledgeSourcePreviewMetric("Connections", connections.size(), "Registered source connections"),
+                new KnowledgeSourcePreviewMetric("Owners", ownerCount, source.ownerTeam()),
+                new KnowledgeSourcePreviewMetric("Agent uses", source.agentUseCount(), "Recorded retrieval usage")
+        );
+    }
+
+    private KnowledgeSourceEligibility eligibility(
+            KnowledgeSource source,
+            List<KnowledgeSourceConnection> connections,
+            List<KnowledgeSourceResource> resources,
+            List<KnowledgeChunk> chunks
+    ) {
+        List<String> reasons = new ArrayList<>();
+        if (!source.enabled()) {
+            reasons.add("Source is disabled.");
+        }
+        if (!source.status().equals("FRESH")) {
+            reasons.add("Source status is %s.".formatted(source.status()));
+        }
+        if (source.allowedAgents().isEmpty()) {
+            reasons.add("No agents are allowed to retrieve this source.");
+        }
+        if (chunks.isEmpty()) {
+            reasons.add("No indexed chunks are available for retrieval.");
+        }
+        if (!connections.isEmpty() && connections.stream().noneMatch(connection -> connection.connectionStatus().equals("CONNECTED"))) {
+            reasons.add("No registered connection has passed a health check.");
+        }
+        if (!connections.isEmpty() && resources.isEmpty()) {
+            reasons.add("No upstream resources have been discovered.");
+        }
+
+        boolean eligible = reasons.isEmpty();
+        return new KnowledgeSourceEligibility(
+                eligible,
+                eligible ? "ELIGIBLE" : "BLOCKED",
+                eligible ? "Eligible for configured agents" : "Needs review before agent reuse",
+                eligible
+                        ? "Latest indexed content is available for %s.".formatted(String.join(", ", source.allowedAgents()))
+                        : "Resolve the listed governance checks before agents rely on this source.",
+                reasons
+        );
+    }
+
+    private List<KnowledgeSourceEvidence> evidence(List<KnowledgeChunk> chunks) {
+        return chunks.stream()
+                .sorted(Comparator.comparing(KnowledgeChunk::sourceTitle).thenComparingInt(KnowledgeChunk::chunkIndex))
+                .limit(5)
+                .map(chunk -> new KnowledgeSourceEvidence(
+                        evidenceTitle(chunk),
+                        excerpt(chunk.text()),
+                        chunk.authority(),
+                        chunk.sourceTitle(),
+                        chunk.documentVersion(),
+                        chunk.chunkIndex()
+                ))
+                .toList();
+    }
+
+    private String evidenceTitle(KnowledgeChunk chunk) {
+        if (!chunk.tags().isEmpty()) {
+            return chunk.tags().getFirst();
+        }
+        return chunk.sourceType();
+    }
+
+    private String excerpt(String value) {
+        String normalized = value.replaceAll("\\s+", " ").trim();
+        if (normalized.length() <= 220) {
+            return normalized;
+        }
+        return normalized.substring(0, 217) + "...";
     }
 
     private void backfillMissingChunks() {

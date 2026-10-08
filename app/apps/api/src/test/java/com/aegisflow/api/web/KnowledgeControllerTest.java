@@ -146,6 +146,15 @@ class KnowledgeControllerTest {
                 .andExpect(jsonPath("$.documentCount").value(1))
                 .andExpect(jsonPath("$.chunkCount").value(greaterThanOrEqualTo(1)));
 
+        mockMvc.perform(get("/api/knowledge/sources/{sourceId}/preview", "screen-service-catalog"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source.sourceId").value("screen-service-catalog"))
+                .andExpect(jsonPath("$.metrics[*].label", hasItem("Documents")))
+                .andExpect(jsonPath("$.metrics[*].label", hasItem("Chunks")))
+                .andExpect(jsonPath("$.eligibility.status").value("ELIGIBLE"))
+                .andExpect(jsonPath("$.evidence", not(empty())))
+                .andExpect(jsonPath("$.evidence[*].sourceTitle", hasItem("Screen Service Catalog")));
+
         mockMvc.perform(get("/api/knowledge/summary"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalSources").value(greaterThanOrEqualTo(6)))

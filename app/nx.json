@@ -20,5 +20,6 @@
       "default",
       "!{projectRoot}/src/test/**/*"
     ]
-  }
+  },
+  "analytics": true
 }
