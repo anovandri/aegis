@@ -6,6 +6,7 @@ import com.aegisflow.api.agent.BrdTextExtractor;
 import com.aegisflow.api.agent.RequirementAnalysisAgentPort;
 import com.aegisflow.api.agent.RequirementChecklist;
 import com.aegisflow.api.application.ProjectService;
+import com.aegisflow.api.application.ReviewService;
 import com.aegisflow.api.domain.AgentExecutionStatus;
 import com.aegisflow.api.domain.ArtifactType;
 import com.aegisflow.api.domain.ArtifactVersion;
@@ -28,6 +29,7 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
     private final RequirementChecklist requirementChecklist;
     private final KnowledgeSearchPort knowledgeSearchPort;
     private final ObjectMapper objectMapper;
+    private final ReviewService reviewService;
 
     public ProjectLifecycleActivitiesImpl(
             ProjectService projectService,
@@ -36,7 +38,8 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
             RequirementAnalysisAgentPort requirementAnalysisAgent,
             RequirementChecklist requirementChecklist,
             KnowledgeSearchPort knowledgeSearchPort,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            ReviewService reviewService
     ) {
         this.projectService = projectService;
         this.brdTextExtractor = brdTextExtractor;
@@ -45,6 +48,7 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
         this.requirementChecklist = requirementChecklist;
         this.knowledgeSearchPort = knowledgeSearchPort;
         this.objectMapper = objectMapper;
+        this.reviewService = reviewService;
     }
 
     @Override
@@ -183,7 +187,8 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
 
     @Override
     public void createTechnicalReview(UUID projectId) {
-        throw new UnsupportedOperationException("Technical Review activity is not implemented yet");
+        reviewService.createTechnicalReview(projectId)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
     }
 
     @Override
@@ -198,7 +203,8 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
 
     @Override
     public void createPmReview(UUID projectId) {
-        throw new UnsupportedOperationException("PM Review activity is not implemented yet");
+        reviewService.createPmReview(projectId)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
     }
 
     @Override
