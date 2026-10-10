@@ -1,11 +1,13 @@
 package com.aegisflow.api.web;
 
+import com.aegisflow.api.application.ProjectLifecycleStarter;
 import com.aegisflow.api.application.ReviewService;
 import com.aegisflow.api.domain.HumanDecision;
 import com.aegisflow.api.domain.HumanReview;
 import com.aegisflow.api.domain.HumanReviewDecision;
 import com.aegisflow.api.domain.ReviewStatus;
 import com.aegisflow.api.domain.ReviewType;
+import com.aegisflow.api.workflow.ReviewDecisionSignal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -30,9 +32,11 @@ import java.util.UUID;
 @RequestMapping("/api/reviews")
 public class ReviewController {
     private final ReviewService reviewService;
+    private final ProjectLifecycleStarter projectLifecycleStarter;
 
-    public ReviewController(ReviewService reviewService) {
+    public ReviewController(ReviewService reviewService, ProjectLifecycleStarter projectLifecycleStarter) {
         this.reviewService = reviewService;
+        this.projectLifecycleStarter = projectLifecycleStarter;
     }
 
     @GetMapping
@@ -82,7 +86,9 @@ public class ReviewController {
     @ResponseStatus(HttpStatus.CREATED)
     HumanReviewDecision decide(@PathVariable UUID reviewId, @Valid @RequestBody SubmitReviewDecisionRequest request) {
         try {
-            return reviewService.decide(
+            HumanReview review = reviewService.findReview(reviewId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
+            HumanReviewDecision decision = reviewService.decide(
                             reviewId,
                             request.decision(),
                             request.actor(),
@@ -91,6 +97,18 @@ public class ReviewController {
                             request.rejectionReason()
                     )
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
+            projectLifecycleStarter.signalReviewDecision(
+                    decision.projectId(),
+                    new ReviewDecisionSignal(
+                            decision.projectId(),
+                            decision.reviewId(),
+                            review.reviewType(),
+                            decision.decision(),
+                            decision.nextState(),
+                            decision.actor()
+                    )
+            );
+            return decision;
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
         } catch (IllegalStateException exception) {

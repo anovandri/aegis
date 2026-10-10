@@ -5,6 +5,7 @@ import com.aegisflow.api.application.WorkflowStartResult;
 import com.aegisflow.api.workflow.ProjectLifecycleInput;
 import com.aegisflow.api.workflow.ProjectLifecycleWorkflow;
 import com.aegisflow.api.workflow.ProjectWorkflowProgress;
+import com.aegisflow.api.workflow.ReviewDecisionSignal;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
 import io.temporal.client.WorkflowStub;
@@ -42,6 +43,15 @@ public class TemporalProjectLifecycleStarter implements ProjectLifecycleStarter 
     public ProjectWorkflowProgress getProgress(UUID projectId) {
         WorkflowStub workflowStub = workflowClient.newUntypedWorkflowStub(workflowId(projectId));
         return workflowStub.query("getProgress", ProjectWorkflowProgress.class);
+    }
+
+    @Override
+    public void signalReviewDecision(UUID projectId, ReviewDecisionSignal signal) {
+        ProjectLifecycleWorkflow workflow = workflowClient.newWorkflowStub(
+                ProjectLifecycleWorkflow.class,
+                workflowId(projectId)
+        );
+        workflow.recordReviewDecision(signal);
     }
 
     private String workflowId(UUID projectId) {

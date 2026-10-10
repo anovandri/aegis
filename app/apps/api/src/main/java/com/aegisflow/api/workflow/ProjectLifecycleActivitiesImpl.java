@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -177,12 +178,81 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
 
     @Override
     public void runArchitectureAnalysis(UUID projectId) {
-        throw new UnsupportedOperationException("Architecture Analysis activity is not implemented yet");
+        Instant startedAt = Instant.now();
+        projectService.transitionProject(projectId, WorkflowState.ARCHITECTURE_ANALYSIS)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+
+        ArtifactVersion requirementAnalysis = projectService.latestArtifact(projectId, ArtifactType.REQUIREMENT_ANALYSIS)
+                .orElseThrow(() -> new IllegalStateException("Project has no requirement analysis artifact: " + projectId));
+        byte[] artifactBytes = toJsonBytes(Map.of(
+                "status", "DRAFT",
+                "summary", "MVP architecture analysis generated from requirement analysis artifact v%d.".formatted(requirementAnalysis.version()),
+                "reuseInvestigation", Map.of(
+                        "existingService", "To be confirmed by Digital Architecture",
+                        "existingApi", "To be confirmed by API catalog integration",
+                        "existingDatabase", "To be confirmed by database catalog integration",
+                        "existingEvent", "To be confirmed by event catalog integration",
+                        "existingPattern", "Prefer reuse before introducing new services"
+                ),
+                "recommendations", java.util.List.of(
+                        "Validate reusable enterprise capabilities before creating new components.",
+                        "Confirm synchronous versus asynchronous integration in technical review.",
+                        "Record architecture risks as review blocking questions."
+                )
+        ));
+
+        ArtifactVersion architectureArtifact = projectService.addGeneratedArtifact(
+                        projectId,
+                        ArtifactType.ARCHITECTURE_ANALYSIS,
+                        "architecture-analysis-v%d.json".formatted(requirementAnalysis.version()),
+                        "application/json",
+                        artifactBytes
+                )
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+        saveDeterministicExecution(
+                projectId,
+                WorkflowState.ARCHITECTURE_ANALYSIS,
+                "Architecture Analysis Activity",
+                startedAt,
+                artifactBytes,
+                "Architecture analysis artifact v%d generated.".formatted(architectureArtifact.version())
+        );
+        projectService.transitionProject(projectId, WorkflowState.SYSTEM_ANALYSIS);
     }
 
     @Override
     public void runSystemAnalysis(UUID projectId) {
-        throw new UnsupportedOperationException("System Analysis activity is not implemented yet");
+        Instant startedAt = Instant.now();
+        projectService.transitionProject(projectId, WorkflowState.SYSTEM_ANALYSIS)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+
+        ArtifactVersion architectureAnalysis = projectService.latestArtifact(projectId, ArtifactType.ARCHITECTURE_ANALYSIS)
+                .orElseThrow(() -> new IllegalStateException("Project has no architecture analysis artifact: " + projectId));
+        byte[] artifactBytes = toJsonBytes(Map.of(
+                "status", "DRAFT",
+                "summary", "MVP system analysis generated from architecture analysis artifact v%d.".formatted(architectureAnalysis.version()),
+                "apiInteractions", java.util.List.of("Define request/response contracts during detailed system analysis."),
+                "sequenceFlows", java.util.List.of("Capture happy path, retry path, timeout path, and reversal path."),
+                "errorHandling", java.util.List.of("Define deterministic error codes and audit events."),
+                "dependencies", java.util.List.of("Confirm impacted systems during technical review.")
+        ));
+
+        ArtifactVersion systemArtifact = projectService.addGeneratedArtifact(
+                        projectId,
+                        ArtifactType.SYSTEM_ANALYSIS,
+                        "system-analysis-v%d.json".formatted(architectureAnalysis.version()),
+                        "application/json",
+                        artifactBytes
+                )
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+        saveDeterministicExecution(
+                projectId,
+                WorkflowState.SYSTEM_ANALYSIS,
+                "System Analysis Activity",
+                startedAt,
+                artifactBytes,
+                "System analysis artifact v%d generated.".formatted(systemArtifact.version())
+        );
     }
 
     @Override
@@ -193,12 +263,92 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
 
     @Override
     public void runEstimation(UUID projectId) {
-        throw new UnsupportedOperationException("Estimation activity is not implemented yet");
+        Instant startedAt = Instant.now();
+        projectService.transitionProject(projectId, WorkflowState.ESTIMATION)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+
+        ArtifactVersion systemAnalysis = projectService.latestArtifact(projectId, ArtifactType.SYSTEM_ANALYSIS)
+                .orElseThrow(() -> new IllegalStateException("Project has no system analysis artifact: " + projectId));
+        byte[] artifactBytes = toJsonBytes(Map.of(
+                "status", "DRAFT",
+                "summary", "MVP estimation generated from system analysis artifact v%d.".formatted(systemAnalysis.version()),
+                "complexity", "MEDIUM",
+                "disciplines", java.util.List.of("Backend", "QA", "Architecture Review", "Project Management"),
+                "estimate", Map.of(
+                        "backendDays", 5,
+                        "qaDays", 3,
+                        "architectureReviewDays", 1,
+                        "projectManagementDays", 1
+                ),
+                "unknowns", java.util.List.of(
+                        "Reuse capability confirmation",
+                        "External dependency availability",
+                        "Non-functional requirement completeness"
+                )
+        ));
+
+        ArtifactVersion estimationArtifact = projectService.addGeneratedArtifact(
+                        projectId,
+                        ArtifactType.ESTIMATION,
+                        "estimation-v%d.json".formatted(systemAnalysis.version()),
+                        "application/json",
+                        artifactBytes
+                )
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+        saveDeterministicExecution(
+                projectId,
+                WorkflowState.ESTIMATION,
+                "Estimation Activity",
+                startedAt,
+                artifactBytes,
+                "Estimation artifact v%d generated.".formatted(estimationArtifact.version())
+        );
+        projectService.transitionProject(projectId, WorkflowState.JIRA_DRAFT);
     }
 
     @Override
     public void runJiraPlanning(UUID projectId) {
-        throw new UnsupportedOperationException("Jira Planning activity is not implemented yet");
+        Instant startedAt = Instant.now();
+        projectService.transitionProject(projectId, WorkflowState.JIRA_DRAFT)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+
+        ArtifactVersion estimation = projectService.latestArtifact(projectId, ArtifactType.ESTIMATION)
+                .orElseThrow(() -> new IllegalStateException("Project has no estimation artifact: " + projectId));
+        byte[] artifactBytes = toJsonBytes(Map.of(
+                "status", "DRAFT",
+                "summary", "MVP Jira draft generated from estimation artifact v%d.".formatted(estimation.version()),
+                "epic", Map.of(
+                        "summary", "Implement approved business requirement",
+                        "description", "Generated draft pending PM approval"
+                ),
+                "stories", java.util.List.of(
+                        Map.of(
+                                "summary", "Backend implementation",
+                                "tasks", java.util.List.of("API contract", "Business logic", "Persistence", "Observability")
+                        ),
+                        Map.of(
+                                "summary", "Quality assurance",
+                                "tasks", java.util.List.of("Integration tests", "E2E scenarios", "Regression checks")
+                        )
+                )
+        ));
+
+        ArtifactVersion jiraPlanArtifact = projectService.addGeneratedArtifact(
+                        projectId,
+                        ArtifactType.JIRA_PLAN,
+                        "jira-plan-v%d.json".formatted(estimation.version()),
+                        "application/json",
+                        artifactBytes
+                )
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+        saveDeterministicExecution(
+                projectId,
+                WorkflowState.JIRA_DRAFT,
+                "Jira Planning Activity",
+                startedAt,
+                artifactBytes,
+                "Jira plan artifact v%d generated.".formatted(jiraPlanArtifact.version())
+        );
     }
 
     @Override
@@ -209,6 +359,43 @@ public class ProjectLifecycleActivitiesImpl implements ProjectLifecycleActivitie
 
     @Override
     public void publishJira(UUID projectId) {
-        throw new UnsupportedOperationException("Jira publish activity is not implemented yet");
+        Instant startedAt = Instant.now();
+        projectService.latestArtifact(projectId, ArtifactType.JIRA_PLAN)
+                .orElseThrow(() -> new IllegalStateException("Project has no Jira plan artifact: " + projectId));
+        projectService.transitionProject(projectId, WorkflowState.JIRA_CREATED)
+                .orElseThrow(() -> new IllegalArgumentException("Project not found: " + projectId));
+        saveDeterministicExecution(
+                projectId,
+                WorkflowState.JIRA_CREATED,
+                "Jira Publish Activity",
+                startedAt,
+                new byte[0],
+                "Jira publish placeholder completed; external Jira creation is still disabled for MVP."
+        );
+    }
+
+    private void saveDeterministicExecution(
+            UUID projectId,
+            WorkflowState workflowState,
+            String activityName,
+            Instant startedAt,
+            byte[] outputBytes,
+            String summary
+    ) {
+        projectService.saveAgentExecution(
+                projectId,
+                workflowState,
+                activityName,
+                "0.1.0",
+                "deterministic-mvp-v1",
+                "deterministic-service",
+                AgentExecutionStatus.SUCCEEDED,
+                1.0,
+                1,
+                estimateTokens(new String(outputBytes, StandardCharsets.UTF_8)),
+                startedAt,
+                Instant.now(),
+                summary
+        );
     }
 }

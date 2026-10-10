@@ -2,6 +2,7 @@ package com.aegisflow.api.application;
 
 import com.aegisflow.api.domain.WorkflowState;
 import com.aegisflow.api.workflow.ProjectWorkflowProgress;
+import com.aegisflow.api.workflow.ReviewDecisionSignal;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -46,5 +47,10 @@ public class NoopProjectLifecycleStarter implements ProjectLifecycleStarter {
                         "JIRA_CREATED"
                 )
         );
+    }
+
+    @Override
+    public void signalReviewDecision(UUID projectId, ReviewDecisionSignal signal) {
+        // Temporal is disabled in local/test mode; the persisted review decision remains authoritative.
     }
 }
