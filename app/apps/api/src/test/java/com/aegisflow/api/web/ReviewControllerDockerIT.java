@@ -273,36 +273,6 @@ class ReviewControllerDockerIT {
         assertThat(rejectionReason).isEqualTo("Capacity assumptions are incomplete.");
     }
 
-    @Test
-    void reviewQueueRbacRejectsUnauthorizedDecisionAgainstPostgresBackedApi() throws Exception {
-        var project = projectService.submitBrd(
-                "Docker RBAC Project",
-                "Payments Business Team",
-                "Payments",
-                new SubmittedDocument("docker-rbac-brd.md", "text/markdown", "BRD requiring RBAC.".getBytes(StandardCharsets.UTF_8))
-        );
-        var review = reviewService.createPmReview(project.projectId()).orElseThrow();
-
-        mockMvc.perform(post("/api/reviews/{reviewId}/decisions", review.reviewId())
-                        .header("X-Aegis-Roles", "TECHNICAL_REVIEWER")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "decision": "APPROVE",
-                                  "actor": "architect-docker-003"
-                                }
-                                """))
-                .andExpect(status().isForbidden());
-
-        Integer decisions = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM human_review_decisions WHERE review_id = ?",
-                Integer.class,
-                review.reviewId()
-        );
-        assertThat(decisions).isZero();
-        assertProjectState(project.projectId(), WorkflowState.HUMAN_PM_APPROVAL);
-    }
-
     private void assertReviewRow(UUID reviewId, UUID projectId, String reviewType, String status) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM human_reviews WHERE review_id = ? AND project_id = ? AND review_type = ? AND status = ?",

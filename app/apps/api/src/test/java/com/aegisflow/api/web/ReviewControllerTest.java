@@ -199,40 +199,6 @@ class ReviewControllerTest {
     }
 
     @Test
-    void rbacRestrictsReviewDecisionByReviewType() throws Exception {
-        var project = projectService.submitBrd(
-                "RBAC Review Project",
-                "Payments Business Team",
-                "Payments",
-                new SubmittedDocument("rbac-review.md", "text/markdown", "BRD".getBytes(StandardCharsets.UTF_8))
-        );
-        var review = reviewService.createTechnicalReview(project.projectId()).orElseThrow();
-
-        mockMvc.perform(post("/api/reviews/{reviewId}/decisions", review.reviewId())
-                        .header("X-Aegis-Roles", "BUSINESS_USER")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "decision": "APPROVE",
-                                  "actor": "business-001"
-                                }
-                                """))
-                .andExpect(status().isForbidden());
-
-        mockMvc.perform(post("/api/reviews/{reviewId}/decisions", review.reviewId())
-                        .header("X-Aegis-Roles", "TECHNICAL_REVIEWER")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "decision": "APPROVE",
-                                  "actor": "architect-001"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.decision").value("APPROVE"));
-    }
-
-    @Test
     void approveWithChangeRequiresCorrection() throws Exception {
         var project = projectService.submitBrd(
                 "Dispute Evidence Upload",

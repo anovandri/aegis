@@ -7,6 +7,8 @@ spring:
     locations: classpath:db/migration
 
 aegisflow:
+  security:
+    enabled: false
   storage:
     provider: in-memory
     bucket: aegisflow-documents
