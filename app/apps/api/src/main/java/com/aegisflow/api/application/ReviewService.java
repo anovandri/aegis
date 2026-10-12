@@ -4,7 +4,10 @@ import com.aegisflow.api.domain.ArtifactType;
 import com.aegisflow.api.domain.ArtifactVersion;
 import com.aegisflow.api.domain.HumanDecision;
 import com.aegisflow.api.domain.HumanReview;
+import com.aegisflow.api.domain.HumanReviewAttachment;
+import com.aegisflow.api.domain.HumanReviewComment;
 import com.aegisflow.api.domain.HumanReviewDecision;
+import com.aegisflow.api.domain.HumanReviewTimelineItem;
 import com.aegisflow.api.domain.Project;
 import com.aegisflow.api.domain.ReviewStatus;
 import com.aegisflow.api.domain.ReviewType;
@@ -20,9 +23,13 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @Service
 public class ReviewService {
+    private static final Pattern MENTION_PATTERN = Pattern.compile("@([A-Za-z0-9._-]+)");
+
     private final Clock clock;
     private final ProjectService projectService;
     private final ReviewRepository reviewRepository;
@@ -43,6 +50,33 @@ public class ReviewService {
 
     public List<HumanReviewDecision> decisions(UUID reviewId) {
         return reviewRepository.findDecisions(reviewId);
+    }
+
+    public List<HumanReviewComment> comments(UUID reviewId) {
+        return reviewRepository.findComments(reviewId);
+    }
+
+    public List<HumanReviewAttachment> attachments(UUID reviewId) {
+        return reviewRepository.findAttachments(reviewId);
+    }
+
+    public Optional<List<HumanReviewTimelineItem>> timeline(UUID reviewId) {
+        return reviewRepository.findReview(reviewId)
+                .map(review -> Stream.concat(
+                                Stream.of(new HumanReviewTimelineItem(
+                                        review.reviewId(),
+                                        review.reviewId(),
+                                        review.projectId(),
+                                        "REVIEW_CREATED",
+                                        "system",
+                                        "%s review created".formatted(review.reviewType().name()),
+                                        "status=%s;workflowState=%s".formatted(review.status().name(), review.workflowState().name()),
+                                        review.createdAt()
+                                )),
+                                reviewRepository.findEvents(reviewId).stream()
+                        )
+                        .sorted(java.util.Comparator.comparing(HumanReviewTimelineItem::createdAt))
+                        .toList());
     }
 
     @Transactional
@@ -89,6 +123,13 @@ public class ReviewService {
                     }
                     Instant now = Instant.now(clock);
                     reviewRepository.updateAssignment(reviewId, ReviewStatus.ASSIGNED, assignee, dueAt, now);
+                    saveEvent(
+                            review,
+                            "REVIEW_ASSIGNED",
+                            assignee,
+                            "Review assigned to %s".formatted(assignee),
+                            "dueAt=%s".formatted(dueAt == null ? "" : dueAt)
+                    );
                     return new HumanReview(
                             review.reviewId(),
                             review.projectId(),
@@ -116,6 +157,72 @@ public class ReviewService {
                 .map(reviewId -> assign(reviewId, assignee, dueAt)
                         .orElseThrow(() -> new IllegalArgumentException("Review not found: " + reviewId)))
                 .toList();
+    }
+
+    @Transactional
+    public Optional<HumanReviewComment> addComment(UUID reviewId, String actor, String body) {
+        return reviewRepository.findReview(reviewId)
+                .map(review -> {
+                    String normalizedBody = requireText(body, "Comment body is required");
+                    Instant now = Instant.now(clock);
+                    HumanReviewComment comment = new HumanReviewComment(
+                            UUID.randomUUID(),
+                            review.reviewId(),
+                            review.projectId(),
+                            requireText(actor, "Actor is required"),
+                            normalizedBody,
+                            extractMentions(normalizedBody),
+                            now
+                    );
+                    reviewRepository.saveComment(comment);
+                    saveEvent(
+                            review,
+                            "COMMENT_ADDED",
+                            comment.actor(),
+                            "Comment added",
+                            "commentId=%s;mentions=%s".formatted(comment.commentId(), String.join(",", comment.mentions()))
+                    );
+                    return comment;
+                });
+    }
+
+    @Transactional
+    public Optional<HumanReviewAttachment> addAttachment(
+            UUID reviewId,
+            String actor,
+            String fileName,
+            String mediaType,
+            String storageUri,
+            String description
+    ) {
+        return reviewRepository.findReview(reviewId)
+                .map(review -> {
+                    Instant now = Instant.now(clock);
+                    HumanReviewAttachment attachment = new HumanReviewAttachment(
+                            UUID.randomUUID(),
+                            review.reviewId(),
+                            review.projectId(),
+                            requireText(actor, "Actor is required"),
+                            requireText(fileName, "File name is required"),
+                            requireText(mediaType, "Media type is required"),
+                            requireText(storageUri, "Storage URI is required"),
+                            blankToNull(description),
+                            now
+                    );
+                    reviewRepository.saveAttachment(attachment);
+                    saveEvent(
+                            review,
+                            "ATTACHMENT_ADDED",
+                            attachment.actor(),
+                            "Attachment added: %s".formatted(attachment.fileName()),
+                            "attachmentId=%s;mediaType=%s;storageUri=%s".formatted(
+                                    attachment.attachmentId(),
+                                    attachment.mediaType(),
+                                    attachment.storageUri()
+                            )
+                    );
+                    return attachment;
+                });
     }
 
     @Transactional
@@ -157,6 +264,17 @@ public class ReviewService {
                     );
                     reviewRepository.saveDecision(reviewDecision);
                     reviewRepository.markDecided(reviewId, now);
+                    saveEvent(
+                            review,
+                            "REVIEW_DECIDED",
+                            actor,
+                            "Review decision submitted: %s".formatted(decision.name()),
+                            "decisionId=%s;previousState=%s;nextState=%s".formatted(
+                                    reviewDecision.decisionId(),
+                                    previousState.name(),
+                                    nextState.name()
+                            )
+                    );
                     return reviewDecision;
                 });
     }
@@ -297,5 +415,34 @@ public class ReviewService {
 
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private List<String> extractMentions(String body) {
+        return MENTION_PATTERN.matcher(body)
+                .results()
+                .map(matchResult -> matchResult.group(1).replaceAll("[.,;:!?)]*$", ""))
+                .filter(mention -> !mention.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private String requireText(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
+        return value.strip();
+    }
+
+    private void saveEvent(HumanReview review, String eventType, String actor, String message, String metadata) {
+        reviewRepository.saveEvent(new HumanReviewTimelineItem(
+                UUID.randomUUID(),
+                review.reviewId(),
+                review.projectId(),
+                eventType,
+                actor,
+                message,
+                metadata == null ? "" : metadata,
+                Instant.now(clock)
+        ));
     }
 }

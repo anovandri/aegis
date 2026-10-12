@@ -144,6 +144,95 @@ class ReviewControllerTest {
     }
 
     @Test
+    void reviewCollaborationAddsCommentsAttachmentsAndTimelineEvents() throws Exception {
+        var project = projectService.submitBrd(
+                "Review Collaboration Project",
+                "Payments Business Team",
+                "Payments",
+                new SubmittedDocument("review-collaboration.md", "text/markdown", "BRD".getBytes(StandardCharsets.UTF_8))
+        );
+        var review = reviewService.createTechnicalReview(project.projectId()).orElseThrow();
+
+        mockMvc.perform(post("/api/reviews/{reviewId}/comments", review.reviewId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "actor": "business-001",
+                                  "body": "Please validate the timeout and retry scope with @architect-001 and @pm-001."
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.actor").value("business-001"))
+                .andExpect(jsonPath("$.mentions", hasItem("architect-001")))
+                .andExpect(jsonPath("$.mentions", hasItem("pm-001")));
+
+        mockMvc.perform(post("/api/reviews/{reviewId}/attachments", review.reviewId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "actor": "architect-001",
+                                  "fileName": "timeout-analysis.pdf",
+                                  "mediaType": "application/pdf",
+                                  "storageUri": "s3://aegisflow-review-evidence/timeout-analysis.pdf",
+                                  "description": "Issuer timeout reference"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fileName").value("timeout-analysis.pdf"))
+                .andExpect(jsonPath("$.storageUri").value("s3://aegisflow-review-evidence/timeout-analysis.pdf"));
+
+        mockMvc.perform(get("/api/reviews/{reviewId}/comments", review.reviewId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].body").value("Please validate the timeout and retry scope with @architect-001 and @pm-001."));
+
+        mockMvc.perform(get("/api/reviews/{reviewId}/attachments", review.reviewId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].mediaType").value("application/pdf"));
+
+        mockMvc.perform(get("/api/reviews/{reviewId}/timeline", review.reviewId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].eventType", hasItem("REVIEW_CREATED")))
+                .andExpect(jsonPath("$[*].eventType", hasItem("COMMENT_ADDED")))
+                .andExpect(jsonPath("$[*].eventType", hasItem("ATTACHMENT_ADDED")));
+    }
+
+    @Test
+    void rbacRestrictsReviewDecisionByReviewType() throws Exception {
+        var project = projectService.submitBrd(
+                "RBAC Review Project",
+                "Payments Business Team",
+                "Payments",
+                new SubmittedDocument("rbac-review.md", "text/markdown", "BRD".getBytes(StandardCharsets.UTF_8))
+        );
+        var review = reviewService.createTechnicalReview(project.projectId()).orElseThrow();
+
+        mockMvc.perform(post("/api/reviews/{reviewId}/decisions", review.reviewId())
+                        .header("X-Aegis-Roles", "BUSINESS_USER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "decision": "APPROVE",
+                                  "actor": "business-001"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/reviews/{reviewId}/decisions", review.reviewId())
+                        .header("X-Aegis-Roles", "TECHNICAL_REVIEWER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "decision": "APPROVE",
+                                  "actor": "architect-001"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.decision").value("APPROVE"));
+    }
+
+    @Test
     void approveWithChangeRequiresCorrection() throws Exception {
         var project = projectService.submitBrd(
                 "Dispute Evidence Upload",

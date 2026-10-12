@@ -2,7 +2,10 @@ package com.aegisflow.api.infrastructure.review;
 
 import com.aegisflow.api.domain.HumanDecision;
 import com.aegisflow.api.domain.HumanReview;
+import com.aegisflow.api.domain.HumanReviewAttachment;
+import com.aegisflow.api.domain.HumanReviewComment;
 import com.aegisflow.api.domain.HumanReviewDecision;
+import com.aegisflow.api.domain.HumanReviewTimelineItem;
 import com.aegisflow.api.domain.ReviewStatus;
 import com.aegisflow.api.domain.ReviewType;
 import com.aegisflow.api.domain.WorkflowState;
@@ -200,6 +203,114 @@ public class JdbcReviewRepository implements ReviewRepository {
         );
     }
 
+    @Override
+    public void saveComment(HumanReviewComment comment) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO human_review_comments (
+                            comment_id,
+                            review_id,
+                            project_id,
+                            actor,
+                            body,
+                            mentions,
+                            created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                comment.commentId(),
+                comment.reviewId(),
+                comment.projectId(),
+                comment.actor(),
+                comment.body(),
+                join(comment.mentions()),
+                Timestamp.from(comment.createdAt())
+        );
+    }
+
+    @Override
+    public List<HumanReviewComment> findComments(UUID reviewId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM human_review_comments WHERE review_id = ? ORDER BY created_at ASC",
+                commentMapper(),
+                reviewId
+        );
+    }
+
+    @Override
+    public void saveAttachment(HumanReviewAttachment attachment) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO human_review_attachments (
+                            attachment_id,
+                            review_id,
+                            project_id,
+                            actor,
+                            file_name,
+                            media_type,
+                            storage_uri,
+                            description,
+                            created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                attachment.attachmentId(),
+                attachment.reviewId(),
+                attachment.projectId(),
+                attachment.actor(),
+                attachment.fileName(),
+                attachment.mediaType(),
+                attachment.storageUri(),
+                attachment.description(),
+                Timestamp.from(attachment.createdAt())
+        );
+    }
+
+    @Override
+    public List<HumanReviewAttachment> findAttachments(UUID reviewId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM human_review_attachments WHERE review_id = ? ORDER BY created_at ASC",
+                attachmentMapper(),
+                reviewId
+        );
+    }
+
+    @Override
+    public void saveEvent(HumanReviewTimelineItem event) {
+        jdbcTemplate.update(
+                """
+                        INSERT INTO human_review_events (
+                            event_id,
+                            review_id,
+                            project_id,
+                            event_type,
+                            actor,
+                            message,
+                            metadata,
+                            created_at
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                event.eventId(),
+                event.reviewId(),
+                event.projectId(),
+                event.eventType(),
+                event.actor(),
+                event.message(),
+                event.metadata(),
+                Timestamp.from(event.createdAt())
+        );
+    }
+
+    @Override
+    public List<HumanReviewTimelineItem> findEvents(UUID reviewId) {
+        return jdbcTemplate.query(
+                "SELECT * FROM human_review_events WHERE review_id = ? ORDER BY created_at ASC",
+                eventMapper(),
+                reviewId
+        );
+    }
+
     private RowMapper<HumanReview> reviewMapper() {
         return (resultSet, rowNumber) -> new HumanReview(
                 uuid(resultSet, "review_id"),
@@ -235,6 +346,45 @@ public class JdbcReviewRepository implements ReviewRepository {
                 WorkflowState.valueOf(resultSet.getString("next_state")),
                 nullableUuid(resultSet, "generated_artifact_id"),
                 nullableInteger(resultSet, "generated_artifact_version"),
+                instant(resultSet, "created_at")
+        );
+    }
+
+    private RowMapper<HumanReviewComment> commentMapper() {
+        return (resultSet, rowNumber) -> new HumanReviewComment(
+                uuid(resultSet, "comment_id"),
+                uuid(resultSet, "review_id"),
+                uuid(resultSet, "project_id"),
+                resultSet.getString("actor"),
+                resultSet.getString("body"),
+                split(resultSet.getString("mentions")),
+                instant(resultSet, "created_at")
+        );
+    }
+
+    private RowMapper<HumanReviewAttachment> attachmentMapper() {
+        return (resultSet, rowNumber) -> new HumanReviewAttachment(
+                uuid(resultSet, "attachment_id"),
+                uuid(resultSet, "review_id"),
+                uuid(resultSet, "project_id"),
+                resultSet.getString("actor"),
+                resultSet.getString("file_name"),
+                resultSet.getString("media_type"),
+                resultSet.getString("storage_uri"),
+                resultSet.getString("description"),
+                instant(resultSet, "created_at")
+        );
+    }
+
+    private RowMapper<HumanReviewTimelineItem> eventMapper() {
+        return (resultSet, rowNumber) -> new HumanReviewTimelineItem(
+                uuid(resultSet, "event_id"),
+                uuid(resultSet, "review_id"),
+                uuid(resultSet, "project_id"),
+                resultSet.getString("event_type"),
+                resultSet.getString("actor"),
+                resultSet.getString("message"),
+                resultSet.getString("metadata"),
                 instant(resultSet, "created_at")
         );
     }

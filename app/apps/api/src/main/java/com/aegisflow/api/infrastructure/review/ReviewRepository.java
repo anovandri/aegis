@@ -1,7 +1,10 @@
 package com.aegisflow.api.infrastructure.review;
 
 import com.aegisflow.api.domain.HumanReview;
+import com.aegisflow.api.domain.HumanReviewAttachment;
+import com.aegisflow.api.domain.HumanReviewComment;
 import com.aegisflow.api.domain.HumanReviewDecision;
+import com.aegisflow.api.domain.HumanReviewTimelineItem;
 import com.aegisflow.api.domain.ReviewStatus;
 import com.aegisflow.api.domain.ReviewType;
 
@@ -25,4 +28,16 @@ public interface ReviewRepository {
     void saveDecision(HumanReviewDecision decision);
 
     List<HumanReviewDecision> findDecisions(UUID reviewId);
+
+    void saveComment(HumanReviewComment comment);
+
+    List<HumanReviewComment> findComments(UUID reviewId);
+
+    void saveAttachment(HumanReviewAttachment attachment);
+
+    List<HumanReviewAttachment> findAttachments(UUID reviewId);
+
+    void saveEvent(HumanReviewTimelineItem event);
+
+    List<HumanReviewTimelineItem> findEvents(UUID reviewId);
 }

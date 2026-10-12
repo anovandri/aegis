@@ -107,6 +107,7 @@ class ProjectLifecycleTemporalDockerIT {
                     .build());
             return Boolean.TRUE;
         });
+        Thread.sleep(1_000);
     }
 
     @Test

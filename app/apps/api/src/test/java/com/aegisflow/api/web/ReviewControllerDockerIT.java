@@ -105,6 +105,36 @@ class ReviewControllerDockerIT {
                 .andExpect(jsonPath("$.status").value("ASSIGNED"))
                 .andExpect(jsonPath("$.assignee").value("architect-docker-001"));
         assertAssignmentWasPersisted(technicalReview.reviewId(), "architect-docker-001", "ASSIGNED");
+        assertTimelineEventWasPersisted(technicalReview.reviewId(), "REVIEW_ASSIGNED");
+
+        mockMvc.perform(post("/api/reviews/{reviewId}/comments", technicalReview.reviewId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "actor": "business-docker-001",
+                                  "body": "Please align timeout handling with @architect-docker-001."
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.mentions", hasItem("architect-docker-001")));
+        assertCommentWasPersisted(technicalReview.reviewId(), "business-docker-001", "architect-docker-001");
+        assertTimelineEventWasPersisted(technicalReview.reviewId(), "COMMENT_ADDED");
+
+        mockMvc.perform(post("/api/reviews/{reviewId}/attachments", technicalReview.reviewId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "actor": "architect-docker-001",
+                                  "fileName": "docker-timeout-reference.pdf",
+                                  "mediaType": "application/pdf",
+                                  "storageUri": "s3://aegisflow-review-evidence/docker-timeout-reference.pdf",
+                                  "description": "Timeout reference"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.fileName").value("docker-timeout-reference.pdf"));
+        assertAttachmentWasPersisted(technicalReview.reviewId(), "docker-timeout-reference.pdf");
+        assertTimelineEventWasPersisted(technicalReview.reviewId(), "ATTACHMENT_ADDED");
 
         String decisionResponse = mockMvc.perform(post("/api/reviews/{reviewId}/decisions", technicalReview.reviewId())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -132,6 +162,15 @@ class ReviewControllerDockerIT {
         assertDecisionRow(technicalDecisionId, technicalReview.reviewId(), technicalProject.projectId(), "APPROVE_WITH_CHANGE", "ESTIMATION");
         assertGeneratedArtifactWasPersisted(technicalProject.projectId(), generatedArtifactId, "ARCHITECTURE_ANALYSIS", 1);
         assertProjectState(technicalProject.projectId(), WorkflowState.ESTIMATION);
+        assertTimelineEventWasPersisted(technicalReview.reviewId(), "REVIEW_DECIDED");
+
+        mockMvc.perform(get("/api/reviews/{reviewId}/timeline", technicalReview.reviewId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].eventType", hasItem("REVIEW_CREATED")))
+                .andExpect(jsonPath("$[*].eventType", hasItem("REVIEW_ASSIGNED")))
+                .andExpect(jsonPath("$[*].eventType", hasItem("COMMENT_ADDED")))
+                .andExpect(jsonPath("$[*].eventType", hasItem("ATTACHMENT_ADDED")))
+                .andExpect(jsonPath("$[*].eventType", hasItem("REVIEW_DECIDED")));
 
         var clarificationProject = projectService.submitBrd(
                 "Docker Clarification Project",
@@ -234,6 +273,36 @@ class ReviewControllerDockerIT {
         assertThat(rejectionReason).isEqualTo("Capacity assumptions are incomplete.");
     }
 
+    @Test
+    void reviewQueueRbacRejectsUnauthorizedDecisionAgainstPostgresBackedApi() throws Exception {
+        var project = projectService.submitBrd(
+                "Docker RBAC Project",
+                "Payments Business Team",
+                "Payments",
+                new SubmittedDocument("docker-rbac-brd.md", "text/markdown", "BRD requiring RBAC.".getBytes(StandardCharsets.UTF_8))
+        );
+        var review = reviewService.createPmReview(project.projectId()).orElseThrow();
+
+        mockMvc.perform(post("/api/reviews/{reviewId}/decisions", review.reviewId())
+                        .header("X-Aegis-Roles", "TECHNICAL_REVIEWER")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "decision": "APPROVE",
+                                  "actor": "architect-docker-003"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
+
+        Integer decisions = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM human_review_decisions WHERE review_id = ?",
+                Integer.class,
+                review.reviewId()
+        );
+        assertThat(decisions).isZero();
+        assertProjectState(project.projectId(), WorkflowState.HUMAN_PM_APPROVAL);
+    }
+
     private void assertReviewRow(UUID reviewId, UUID projectId, String reviewType, String status) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM human_reviews WHERE review_id = ? AND project_id = ? AND review_type = ? AND status = ?",
@@ -285,6 +354,37 @@ class ReviewControllerDockerIT {
                 nextState
         );
         assertThat(count).isEqualTo(1);
+    }
+
+    private void assertCommentWasPersisted(UUID reviewId, String actor, String mention) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM human_review_comments WHERE review_id = ? AND actor = ? AND mentions LIKE ?",
+                Integer.class,
+                reviewId,
+                actor,
+                "%" + mention + "%"
+        );
+        assertThat(count).isEqualTo(1);
+    }
+
+    private void assertAttachmentWasPersisted(UUID reviewId, String fileName) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM human_review_attachments WHERE review_id = ? AND file_name = ?",
+                Integer.class,
+                reviewId,
+                fileName
+        );
+        assertThat(count).isEqualTo(1);
+    }
+
+    private void assertTimelineEventWasPersisted(UUID reviewId, String eventType) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM human_review_events WHERE review_id = ? AND event_type = ?",
+                Integer.class,
+                reviewId,
+                eventType
+        );
+        assertThat(count).isGreaterThanOrEqualTo(1);
     }
 
     private void assertGeneratedArtifactWasPersisted(UUID projectId, UUID artifactId, String artifactType, int version) {
