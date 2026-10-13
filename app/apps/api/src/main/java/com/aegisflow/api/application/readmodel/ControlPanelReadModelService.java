@@ -8,7 +8,6 @@ import com.aegisflow.api.application.readmodel.ControlPanelReadModels.DashboardR
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.JiraDraftDetail;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.JiraDraftSummary;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.OperationsHealth;
-import com.aegisflow.api.application.readmodel.ControlPanelReadModels.ProjectRoom;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.ProjectSummary;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.ReviewQueueItem;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.StateCount;
@@ -49,12 +48,24 @@ public class ControlPanelReadModelService {
                 count("SELECT COUNT(*) FROM projects WHERE current_state = 'JIRA_CREATED'"),
                 projectsByState(),
                 reviewQueue(Optional.empty(), Optional.empty(), Optional.empty(), 5),
-                projects(Optional.empty(), Optional.empty(), Optional.empty(), 5),
+                projects(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), 5),
                 agentRuns(Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), 5)
         );
     }
 
     public List<ProjectSummary> projects(Optional<WorkflowState> state, Optional<String> owner, Optional<String> domain, int limit) {
+        return projects(state, owner, domain, Optional.empty(), Optional.empty(), Optional.empty(), limit);
+    }
+
+    public List<ProjectSummary> projects(
+            Optional<WorkflowState> state,
+            Optional<String> owner,
+            Optional<String> domain,
+            Optional<String> risk,
+            Optional<Boolean> stale,
+            Optional<ReviewStatus> reviewStatus,
+            int limit
+    ) {
         StringBuilder sql = new StringBuilder(
                 """
                         SELECT
@@ -91,20 +102,24 @@ public class ControlPanelReadModelService {
                         LIMIT ?
                         """
         );
-        args.add(limit);
+        args.add(Math.max(limit, 100));
 
-        return jdbcTemplate.query(sql.toString(), (resultSet, rowNumber) -> projectSummary(resultSet), args.toArray());
+        return jdbcTemplate.query(sql.toString(), (resultSet, rowNumber) -> projectSummary(resultSet), args.toArray()).stream()
+                .filter(project -> stale.map(value -> project.hasStaleArtifacts() == value).orElse(true))
+                .filter(project -> risk.filter(value -> !value.isBlank())
+                        .map(value -> project.riskFlags().stream().anyMatch(flag -> flag.equalsIgnoreCase(value) || flag.toLowerCase().contains(value.toLowerCase())))
+                        .orElse(true))
+                .filter(project -> reviewStatus.map(value -> project.pendingReview() != null && project.pendingReview().status() == value).orElse(true))
+                .limit(limit)
+                .toList();
     }
 
-    public Optional<ProjectRoom> projectRoom(UUID projectId) {
-        return findProjectSummary(projectId).map(project -> new ProjectRoom(
-                project,
-                artifacts(projectId),
-                reviewsForProject(projectId),
-                agentRuns(Optional.of(projectId), Optional.empty(), Optional.empty(), Optional.empty(), 20),
-                jiraDraft(projectId).orElse(null),
-                auditEvents(Optional.of(projectId), 30)
-        ));
+    public List<ArtifactSummary> projectArtifacts(UUID projectId) {
+        return artifacts(projectId);
+    }
+
+    public Optional<ProjectSummary> project(UUID projectId) {
+        return findProjectSummary(projectId);
     }
 
     public List<ReviewQueueItem> myReviewQueue(Optional<String> role, Optional<ReviewType> reviewType, Optional<ReviewStatus> status) {
@@ -234,6 +249,7 @@ public class ControlPanelReadModelService {
         events.addAll(artifactEvents(projectId, limit));
         events.addAll(agentExecutionEvents(projectId, limit));
         events.addAll(reviewEvents(projectId, limit));
+        events.addAll(projectMessageEvents(projectId, limit));
         return events.stream()
                 .sorted(java.util.Comparator.comparing(AuditEvent::occurredAt).reversed())
                 .limit(limit)
@@ -315,6 +331,9 @@ public class ControlPanelReadModelService {
 
     private ProjectSummary projectSummary(ResultSet resultSet) throws SQLException {
         UUID projectId = uuid(resultSet, "project_id");
+        List<ArtifactSummary> projectArtifacts = artifacts(projectId);
+        int staleArtifactCount = (int) projectArtifacts.stream().filter(ArtifactSummary::stale).count();
+        List<String> riskFlags = riskFlags(projectId, staleArtifactCount);
         return new ProjectSummary(
                 projectId,
                 resultSet.getString("name"),
@@ -323,6 +342,9 @@ public class ControlPanelReadModelService {
                 WorkflowState.valueOf(resultSet.getString("current_state")),
                 instant(resultSet, "created_at"),
                 resultSet.getInt("artifact_count"),
+                staleArtifactCount,
+                staleArtifactCount > 0,
+                riskFlags,
                 nullableInstant(resultSet, "latest_artifact_at"),
                 pendingReview(projectId).orElse(null),
                 latestAgentRun(projectId).orElse(null)
@@ -340,7 +362,8 @@ public class ControlPanelReadModelService {
                             media_type,
                             size_bytes,
                             content_hash,
-                            created_at
+                            created_at,
+                            MAX(CASE WHEN artifact_type = 'BRD' THEN created_at ELSE NULL END) OVER (PARTITION BY project_id) AS latest_brd_created_at
                         FROM artifact_versions
                         WHERE project_id = ?
                         ORDER BY artifact_type, version DESC
@@ -359,8 +382,58 @@ public class ControlPanelReadModelService {
                 resultSet.getString("media_type"),
                 resultSet.getLong("size_bytes"),
                 resultSet.getString("content_hash"),
-                instant(resultSet, "created_at")
+                instant(resultSet, "created_at"),
+                isStaleArtifact(resultSet),
+                staleReasons(resultSet)
         );
+    }
+
+    private boolean isStaleArtifact(ResultSet resultSet) throws SQLException {
+        ArtifactType artifactType = ArtifactType.valueOf(resultSet.getString("artifact_type"));
+        Instant latestBrdCreatedAt = nullableInstant(resultSet, "latest_brd_created_at");
+        return artifactType != ArtifactType.BRD
+                && latestBrdCreatedAt != null
+                && instant(resultSet, "created_at").isBefore(latestBrdCreatedAt);
+    }
+
+    private List<String> staleReasons(ResultSet resultSet) throws SQLException {
+        if (!isStaleArtifact(resultSet)) {
+            return List.of();
+        }
+        return List.of("A newer BRD version exists after this artifact was generated");
+    }
+
+    private List<String> riskFlags(UUID projectId, int staleArtifactCount) {
+        java.util.ArrayList<String> flags = new java.util.ArrayList<>();
+        if (staleArtifactCount > 0) {
+            flags.add("STALE_ARTIFACTS");
+        }
+        long highPriorityPendingReviews = count(
+                """
+                        SELECT COUNT(*)
+                        FROM human_reviews
+                        WHERE project_id = ?
+                          AND status <> 'DECIDED'
+                          AND LOWER(priority) = 'high'
+                        """,
+                projectId
+        );
+        if (highPriorityPendingReviews > 0) {
+            flags.add("HIGH_PRIORITY_REVIEW");
+        }
+        long failedAgentRuns = count(
+                """
+                        SELECT COUNT(*)
+                        FROM agent_executions
+                        WHERE project_id = ?
+                          AND status <> 'SUCCEEDED'
+                        """,
+                projectId
+        );
+        if (failedAgentRuns > 0) {
+            flags.add("AGENT_FAILURE");
+        }
+        return flags;
     }
 
     private Optional<ReviewQueueItem> pendingReview(UUID projectId) {
@@ -380,7 +453,7 @@ public class ControlPanelReadModelService {
                 .findFirst();
     }
 
-    private List<ReviewQueueItem> reviewsForProject(UUID projectId) {
+    public List<ReviewQueueItem> reviewsForProject(UUID projectId) {
         return jdbcTemplate.query(
                 "SELECT * FROM human_reviews WHERE project_id = ? ORDER BY created_at DESC",
                 this::reviewQueueItem,
@@ -582,6 +655,37 @@ public class ControlPanelReadModelService {
         ), args);
     }
 
+    private List<AuditEvent> projectMessageEvents(Optional<UUID> projectId, int limit) {
+        String sql = projectId
+                .map(value -> """
+                        SELECT pm.*, p.name AS project_name
+                        FROM project_messages pm
+                        JOIN projects p ON p.project_id = pm.project_id
+                        WHERE pm.project_id = ?
+                        ORDER BY pm.created_at DESC
+                        LIMIT ?
+                        """)
+                .orElse("""
+                        SELECT pm.*, p.name AS project_name
+                        FROM project_messages pm
+                        JOIN projects p ON p.project_id = pm.project_id
+                        ORDER BY pm.created_at DESC
+                        LIMIT ?
+                        """);
+        Object[] args = projectId.<Object[]>map(value -> new Object[]{value, limit}).orElseGet(() -> new Object[]{limit});
+        return jdbcTemplate.query(sql, (resultSet, rowNumber) -> new AuditEvent(
+                "message-" + uuid(resultSet, "message_id"),
+                "PROJECT_MESSAGE_ADDED",
+                resultSet.getString("actor"),
+                uuid(resultSet, "project_id"),
+                resultSet.getString("project_name"),
+                "PROJECT_MESSAGE",
+                uuid(resultSet, "message_id").toString(),
+                resultSet.getString("body"),
+                instant(resultSet, "created_at")
+        ), args);
+    }
+
     private String operationalStatus(WorkflowState state, ReviewQueueItem pendingReview) {
         if (pendingReview != null) {
             return "WAITING_FOR_" + pendingReview.reviewType().name();
@@ -593,7 +697,11 @@ public class ControlPanelReadModelService {
     }
 
     private long count(String sql) {
-        Long value = jdbcTemplate.queryForObject(sql, Long.class);
+        return count(sql, new Object[]{});
+    }
+
+    private long count(String sql, Object... args) {
+        Long value = jdbcTemplate.queryForObject(sql, Long.class, args);
         return value == null ? 0L : value;
     }
 

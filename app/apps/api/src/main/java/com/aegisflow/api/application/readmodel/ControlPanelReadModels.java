@@ -43,19 +43,12 @@ public final class ControlPanelReadModels {
             WorkflowState currentState,
             Instant createdAt,
             int artifactCount,
+            int staleArtifactCount,
+            boolean hasStaleArtifacts,
+            List<String> riskFlags,
             Instant latestArtifactAt,
             ReviewQueueItem pendingReview,
             AgentRunSummary latestAgentRun
-    ) {
-    }
-
-    public record ProjectRoom(
-            ProjectSummary project,
-            List<ArtifactSummary> artifacts,
-            List<ReviewQueueItem> reviews,
-            List<AgentRunSummary> agentRuns,
-            JiraDraftSummary jiraDraft,
-            List<AuditEvent> activity
     ) {
     }
 
@@ -67,7 +60,9 @@ public final class ControlPanelReadModels {
             String mediaType,
             long sizeBytes,
             String contentHash,
-            Instant createdAt
+            Instant createdAt,
+            boolean stale,
+            List<String> staleReasons
     ) {
     }
 

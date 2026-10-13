@@ -8,7 +8,6 @@ import com.aegisflow.api.application.readmodel.ControlPanelReadModels.DashboardR
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.JiraDraftDetail;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.JiraDraftSummary;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.OperationsHealth;
-import com.aegisflow.api.application.readmodel.ControlPanelReadModels.ProjectRoom;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.ProjectSummary;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.ReviewQueueItem;
 import com.aegisflow.api.application.readmodel.ControlPanelReadModels.WorkflowOperation;
@@ -19,7 +18,6 @@ import com.aegisflow.api.domain.WorkflowState;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -46,20 +44,20 @@ public class ControlPanelReadModelController {
             @RequestParam(required = false) WorkflowState state,
             @RequestParam(required = false) String owner,
             @RequestParam(required = false) String domain,
+            @RequestParam(required = false) String risk,
+            @RequestParam(required = false) Boolean stale,
+            @RequestParam(required = false) ReviewStatus reviewStatus,
             @RequestParam(defaultValue = "100") int limit
     ) {
         return readModelService.projects(
                 Optional.ofNullable(state),
                 Optional.ofNullable(owner),
                 Optional.ofNullable(domain),
+                Optional.ofNullable(risk),
+                Optional.ofNullable(stale),
+                Optional.ofNullable(reviewStatus),
                 boundedLimit(limit)
         );
-    }
-
-    @GetMapping("/api/projects/{projectId}/room")
-    ProjectRoom projectRoom(@PathVariable UUID projectId) {
-        return readModelService.projectRoom(projectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found"));
     }
 
     @GetMapping("/api/reviews/my-queue")
@@ -133,4 +131,5 @@ public class ControlPanelReadModelController {
         }
         return Math.min(requestedLimit, 500);
     }
+
 }

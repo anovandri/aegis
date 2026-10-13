@@ -63,7 +63,7 @@ Missing backend read APIs:
 ```text
 GET /api/dashboard
 GET /api/projects
-GET /api/projects/{projectId}/room
+GET /api/project-rooms/{projectId}
 GET /api/reviews/my-queue
 GET /api/jira-drafts
 GET /api/jira-drafts/{projectId}
@@ -89,7 +89,8 @@ Initial implementation status:
 
 - Added `GET /api/dashboard`.
 - Added `GET /api/projects`.
-- Added `GET /api/projects/{projectId}/room`.
+- Added `GET /api/project-rooms/{projectId}`.
+- Kept `GET /api/projects/{projectId}/room` as a backward-compatible alias.
 - Added `GET /api/reviews/my-queue`.
 - Added `GET /api/jira-drafts`.
 - Added `GET /api/jira-drafts/{projectId}`.
@@ -124,11 +125,18 @@ Recommended endpoints:
 
 ```text
 GET /api/projects?state=&owner=&domain=&risk=&stale=
-GET /api/projects/{projectId}/room
-GET /api/projects/{projectId}/artifacts
-GET /api/projects/{projectId}/activity
-POST /api/projects/{projectId}/messages
+GET /api/project-rooms/{projectId}
+GET /api/project-rooms/{projectId}/artifacts
+GET /api/project-rooms/{projectId}/activity
+GET /api/project-rooms/{projectId}/messages
+POST /api/project-rooms/{projectId}/messages
+GET /api/project-rooms/{projectId}/suggested-actions
 ```
+
+The older `/api/projects/{projectId}/room`, `/api/projects/{projectId}/artifacts`,
+`/api/projects/{projectId}/activity`, and `/api/projects/{projectId}/messages`
+routes may remain as compatibility aliases, but the code boundary should live in a
+Project Room controller/service rather than the Control Panel controller.
 
 Additional persistence needed:
 
@@ -138,6 +146,27 @@ Additional persistence needed:
 - optional `project_memberships` for project-level authorization
 
 Priority: High.
+
+Initial implementation status:
+
+- Added `GET /api/project-rooms/{projectId}/artifacts`.
+- Added `GET /api/project-rooms/{projectId}/activity`.
+- Added `GET /api/project-rooms/{projectId}/messages`.
+- Added `POST /api/project-rooms/{projectId}/messages`.
+- Added `GET /api/project-rooms/{projectId}/suggested-actions`.
+- Moved Project Command Room composition and anchored messages into the `projectroom` application boundary.
+- Added `project_messages` persistence for anchored project-room communication.
+- Extended project summaries with stale artifact count, stale indicator, and risk flags.
+- Extended artifact summaries with derived staleness and stale reasons.
+- Extended project list filtering with `risk`, `stale`, and `reviewStatus` query parameters.
+- Included project messages in the Project Command Room read model.
+
+Remaining hardening for this item:
+
+- Add dedicated `project_activity_events` once the central append-only audit model is implemented.
+- Replace simple BRD-based staleness derivation with explicit artifact dependency tracking.
+- Add project membership and tenant-aware authorization filters.
+- Add knowledge citation summaries once retrieval snapshots are persisted.
 
 ### 3. Login With Enterprise Identity Providers
 
@@ -737,7 +766,7 @@ Start with:
 
 1. `GET /api/dashboard`
 2. `GET /api/projects`
-3. `GET /api/projects/{projectId}/room`
+3. `GET /api/project-rooms/{projectId}`
 4. `GET /api/reviews/my-queue`
 5. central `audit_events`
 6. `GET /api/agent-runs`
