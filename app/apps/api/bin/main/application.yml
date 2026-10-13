@@ -13,6 +13,8 @@ server:
   port: 8080
 
 aegisflow:
+  security:
+    enabled: true
   workflow:
     mode: stub
   temporal:
