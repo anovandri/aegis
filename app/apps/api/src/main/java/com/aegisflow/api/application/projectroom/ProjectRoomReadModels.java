@@ -56,6 +56,21 @@ public final class ProjectRoomReadModels {
     ) {
     }
 
+    public record ProjectRoomArtifactDetail(
+            ProjectRoomArtifact artifact,
+            boolean downloadable,
+            String downloadPath
+    ) {
+    }
+
+    public record ProjectRoomArtifactContent(
+            ProjectRoomArtifact artifact,
+            String fileName,
+            String mediaType,
+            byte[] content
+    ) {
+    }
+
     public record ProjectRoomReview(
             UUID reviewId,
             UUID projectId,

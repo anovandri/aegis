@@ -154,6 +154,11 @@ Initial implementation status:
 - Added `GET /api/project-rooms/{projectId}/messages`.
 - Added `POST /api/project-rooms/{projectId}/messages`.
 - Added `GET /api/project-rooms/{projectId}/suggested-actions`.
+- Added `POST /api/project-rooms/{projectId}/technical-review/decision` for Project Command Room technical review decisions.
+- Added `POST /api/project-rooms/{projectId}/reviews/{reviewId}/attachments` for file-backed review evidence upload from the Project Command Room.
+- Added `POST /api/project-rooms/{projectId}/brd-versions` for revised BRD upload from the Project Command Room.
+- Added `GET /api/project-rooms/{projectId}/artifacts/{artifactId}/versions/{version}` for artifact version detail.
+- Added `GET /api/project-rooms/{projectId}/artifacts/{artifactId}/versions/{version}/content` for artifact content download.
 - Moved Project Command Room composition and anchored messages into the `projectroom` application boundary.
 - Added `project_messages` persistence for anchored project-room communication.
 - Extended project summaries with stale artifact count, stale indicator, and risk flags.
@@ -164,6 +169,8 @@ Initial implementation status:
 Remaining hardening for this item:
 
 - Add dedicated `project_activity_events` once the central append-only audit model is implemented.
+- Add project-message attachment persistence if attachments must exist outside review evidence.
+- Add an explicit Temporal reanalysis signal for revised BRD uploads; the current Project Room endpoint stores the BRD version and resets the project state to `BRD_SUBMITTED`, with optional workflow restart.
 - Replace simple BRD-based staleness derivation with explicit artifact dependency tracking.
 - Add project membership and tenant-aware authorization filters.
 - Add knowledge citation summaries once retrieval snapshots are persisted.

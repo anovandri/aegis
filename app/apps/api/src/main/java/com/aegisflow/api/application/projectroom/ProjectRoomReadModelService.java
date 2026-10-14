@@ -5,6 +5,8 @@ import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRo
 import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomActivityEvent;
 import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomAgentRun;
 import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomArtifact;
+import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomArtifactContent;
+import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomArtifactDetail;
 import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomJiraDraft;
 import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomProject;
 import com.aegisflow.api.application.projectroom.ProjectRoomReadModels.ProjectRoomReview;
@@ -13,6 +15,8 @@ import com.aegisflow.api.domain.ArtifactType;
 import com.aegisflow.api.domain.ReviewStatus;
 import com.aegisflow.api.domain.ReviewType;
 import com.aegisflow.api.domain.WorkflowState;
+import com.aegisflow.api.ports.DocumentStoragePort;
+import com.aegisflow.api.ports.StoredDocument;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,10 +37,12 @@ public class ProjectRoomReadModelService {
     private static final Pattern MENTION_PATTERN = Pattern.compile("@([A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*)");
 
     private final JdbcTemplate jdbcTemplate;
+    private final DocumentStoragePort documentStoragePort;
     private final Clock clock;
 
-    public ProjectRoomReadModelService(JdbcTemplate jdbcTemplate, Clock clock) {
+    public ProjectRoomReadModelService(JdbcTemplate jdbcTemplate, DocumentStoragePort documentStoragePort, Clock clock) {
         this.jdbcTemplate = jdbcTemplate;
+        this.documentStoragePort = documentStoragePort;
         this.clock = clock;
     }
 
@@ -57,6 +63,29 @@ public class ProjectRoomReadModelService {
             return Optional.empty();
         }
         return Optional.of(artifacts(projectId));
+    }
+
+    public Optional<ProjectRoomArtifactDetail> artifactDetail(UUID projectId, UUID artifactId, int version) {
+        return storedArtifact(projectId, artifactId, version)
+                .map(artifact -> new ProjectRoomArtifactDetail(
+                        artifact.artifact(),
+                        true,
+                        "/api/project-rooms/%s/artifacts/%s/versions/%d/content".formatted(projectId, artifactId, version)
+                ));
+    }
+
+    public Optional<ProjectRoomArtifactContent> artifactContent(UUID projectId, UUID artifactId, int version) {
+        return storedArtifact(projectId, artifactId, version)
+                .map(artifact -> new ProjectRoomArtifactContent(
+                        artifact.artifact(),
+                        artifact.artifact().fileName(),
+                        artifact.artifact().mediaType(),
+                        documentStoragePort.retrieve(new StoredDocument(
+                                artifact.storageBucket(),
+                                artifact.storageObjectKey(),
+                                artifact.storageVersionId()
+                        ))
+                ));
     }
 
     public Optional<List<ProjectRoomActivityEvent>> activityIfProjectExists(UUID projectId, int limit) {
@@ -224,6 +253,45 @@ public class ProjectRoomReadModelService {
                         """,
                 this::artifact,
                 projectId
+        );
+    }
+
+    private Optional<StoredProjectRoomArtifact> storedArtifact(UUID projectId, UUID artifactId, int version) {
+        return jdbcTemplate.query(
+                        """
+                                SELECT
+                                    artifact_id,
+                                    artifact_type,
+                                    version,
+                                    file_name,
+                                    media_type,
+                                    size_bytes,
+                                    content_hash,
+                                    storage_bucket,
+                                    storage_object_key,
+                                    storage_version_id,
+                                    created_at,
+                                    MAX(CASE WHEN artifact_type = 'BRD' THEN created_at ELSE NULL END) OVER (PARTITION BY project_id) AS latest_brd_created_at
+                                FROM artifact_versions
+                                WHERE project_id = ?
+                                  AND artifact_id = ?
+                                  AND version = ?
+                                """,
+                        this::storedArtifact,
+                        projectId,
+                        artifactId,
+                        version
+                )
+                .stream()
+                .findFirst();
+    }
+
+    private StoredProjectRoomArtifact storedArtifact(ResultSet resultSet, int rowNumber) throws SQLException {
+        return new StoredProjectRoomArtifact(
+                artifact(resultSet, rowNumber),
+                resultSet.getString("storage_bucket"),
+                resultSet.getString("storage_object_key"),
+                resultSet.getString("storage_version_id")
         );
     }
 
@@ -617,5 +685,13 @@ public class ProjectRoomReadModelService {
     private Instant nullableInstant(ResultSet resultSet, String column) throws SQLException {
         Timestamp timestamp = resultSet.getTimestamp(column);
         return timestamp == null ? null : timestamp.toInstant();
+    }
+
+    private record StoredProjectRoomArtifact(
+            ProjectRoomArtifact artifact,
+            String storageBucket,
+            String storageObjectKey,
+            String storageVersionId
+    ) {
     }
 }
