@@ -219,6 +219,27 @@ External identity proves who the user is. AegisFlow roles still decide whether t
 
 Priority: High, after local RBAC stabilizes.
 
+Implementation status:
+
+- Added Spring Security OAuth2 client support while preserving local JDBC user login.
+- Added `GET /api/auth/identity-providers` for the login screen to discover Google Workspace, GitHub Enterprise, and Enterprise SSO options.
+- Added OAuth2/OIDC user services that resolve external identities into internal AegisFlow users and authorities.
+- Added `POST /api/auth/logout` for browser/session logout.
+- Added admin-only `GET /api/auth/role-mapping-rules`.
+- Added admin-only `GET /api/auth/audit-events`.
+- Added `identity_provider_configs`, `external_identities`, `role_mapping_rules`, and `auth_audit_events` persistence.
+- Seeded disabled provider definitions for `google`, `github`, and `enterprise`.
+- Added domain and organization allowlist enforcement during external identity resolution.
+- Added login success and login failure audit persistence.
+- Added H2-backed and Docker/PostgreSQL-backed tests for provider discovery, identity resolution, role mapping, and audit persistence.
+
+Remaining production setup for this item:
+
+- Configure real provider client registrations through environment-specific Spring Security OAuth2 client properties.
+- Enable each provider in `identity_provider_configs` only after the enterprise IdP has been approved.
+- Add admin write APIs for maintaining provider allowlists and role mapping rules if these should be managed from the Settings screen instead of migrations/DB operations.
+- Add provider-specific GitHub Enterprise organization/team claim enrichment if the enterprise GitHub OAuth flow does not include org/team claims in the default user-info response.
+
 ### 4. User Management And RBAC Hardening
 
 The Settings and User Management screens need richer backend support than the current local user APIs.

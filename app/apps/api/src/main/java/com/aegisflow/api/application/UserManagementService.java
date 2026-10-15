@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class UserManagementService {
@@ -63,6 +64,29 @@ public class UserManagementService {
                 .disabled(!enabled)
                 .build();
         userDetailsManager.createUser(user);
+        return findUser(username);
+    }
+
+    @Transactional
+    public UserSummary ensureExternalUser(String username, List<String> roles, boolean enabled) {
+        requireText(username, "Username is required");
+        List<String> authorities = normalizeAuthorities(roles);
+        if (!userDetailsManager.userExists(username)) {
+            UserDetails user = User.withUsername(username)
+                    .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                    .authorities(authorities.toArray(String[]::new))
+                    .disabled(!enabled)
+                    .build();
+            userDetailsManager.createUser(user);
+            return findUser(username);
+        }
+
+        UserDetails existing = userDetailsManager.loadUserByUsername(username);
+        UserDetails updated = User.withUserDetails(existing)
+                .authorities(authorities.toArray(String[]::new))
+                .disabled(!enabled)
+                .build();
+        userDetailsManager.updateUser(updated);
         return findUser(username);
     }
 

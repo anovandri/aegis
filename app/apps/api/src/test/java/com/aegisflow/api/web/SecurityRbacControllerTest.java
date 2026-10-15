@@ -3,15 +3,22 @@ package com.aegisflow.api.web;
 import com.aegisflow.api.application.ProjectService;
 import com.aegisflow.api.application.ReviewService;
 import com.aegisflow.api.application.SubmittedDocument;
+import com.aegisflow.api.application.identity.EnterpriseIdentityException;
+import com.aegisflow.api.application.identity.EnterpriseIdentityService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
+import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -33,6 +40,12 @@ class SecurityRbacControllerTest {
     @Autowired
     private ReviewService reviewService;
 
+    @Autowired
+    private EnterpriseIdentityService enterpriseIdentityService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     void authenticationAndUserManagementUsePersistentUsersAndEncodedPasswords() throws Exception {
         mockMvc.perform(get("/api/auth/me"))
@@ -45,6 +58,9 @@ class SecurityRbacControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("admin"))
                 .andExpect(jsonPath("$.authorities", hasItem("ROLE_ADMIN")));
+
+        mockMvc.perform(post("/api/auth/logout").with(httpBasic("admin", "password")))
+                .andExpect(status().isNoContent());
 
         mockMvc.perform(post("/api/auth/users")
                         .with(httpBasic("admin", "password"))
@@ -196,6 +212,73 @@ class SecurityRbacControllerTest {
                 .andExpect(status().isCreated());
     }
 
+    @Test
+    void enterpriseIdentityProvidersExposeLoginOptionsAndResolveExternalUsersIntoInternalRoles() throws Exception {
+        mockMvc.perform(get("/api/auth/identity-providers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.providerId == 'google')].authorizationPath", hasItem("/oauth2/authorization/google")))
+                .andExpect(jsonPath("$[?(@.providerId == 'github')].displayName", hasItem("GitHub Enterprise")))
+                .andExpect(jsonPath("$[?(@.providerId == 'enterprise')].providerType", hasItem("OIDC")));
+
+        mockMvc.perform(get("/api/auth/audit-events").with(httpBasic("admin", "password")))
+                .andExpect(status().isOk());
+
+        jdbcTemplate.update(
+                """
+                        UPDATE identity_provider_configs
+                        SET enabled = TRUE, allowed_email_domains = ?
+                        WHERE provider_id = 'google'
+                        """,
+                "mnc.co.id"
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO role_mapping_rules (
+                            rule_id, provider_id, claim_name, claim_value, authority,
+                            priority, enabled, created_at, updated_at
+                        )
+                        VALUES (?, 'google', 'hd', 'mnc.co.id', 'ROLE_TECHNICAL_REVIEWER',
+                                10, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                UUID.randomUUID()
+        );
+
+        var identity = enterpriseIdentityService.resolveExternalIdentity(
+                "google",
+                "google-subject-001",
+                "Architect@MNC.CO.ID",
+                "Architecture Reviewer",
+                Map.of("hd", "mnc.co.id")
+        );
+
+        assertThat(identity.username()).isEqualTo("architect@mnc.co.id");
+        assertThat(identity.authorities()).contains("ROLE_BUSINESS_USER", "ROLE_TECHNICAL_REVIEWER");
+        assertPersistedCount(
+                "SELECT COUNT(*) FROM external_identities WHERE provider_id = 'google' AND username = 'architect@mnc.co.id'",
+                1
+        );
+        assertPersistedCount(
+                "SELECT COUNT(*) FROM authorities WHERE username = 'architect@mnc.co.id' AND authority = 'ROLE_TECHNICAL_REVIEWER'",
+                1
+        );
+        assertPersistedCount(
+                "SELECT COUNT(*) FROM auth_audit_events WHERE provider_id = 'google' AND event_type = 'LOGIN_SUCCESS'",
+                1
+        );
+
+        assertThatThrownBy(() -> enterpriseIdentityService.resolveExternalIdentity(
+                "google",
+                "google-subject-002",
+                "outsider@example.com",
+                "Outsider",
+                Map.of("hd", "example.com")
+        )).isInstanceOf(EnterpriseIdentityException.class);
+        assertPersistedCount(
+                "SELECT COUNT(*) FROM auth_audit_events WHERE provider_id = 'google' AND event_type = 'LOGIN_FAILURE'",
+                1
+        );
+    }
+
     private void createUser(String username, String password, String role) throws Exception {
         mockMvc.perform(post("/api/auth/users")
                         .with(httpBasic("admin", "password"))
@@ -209,5 +292,10 @@ class SecurityRbacControllerTest {
                                 }
                                 """.formatted(username, password, role)))
                 .andExpect(status().isCreated());
+    }
+
+    private void assertPersistedCount(String sql, int expectedCount) {
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+        assertThat(count).isEqualTo(expectedCount);
     }
 }

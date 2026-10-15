@@ -3,6 +3,7 @@ package com.aegisflow.api.web;
 import com.aegisflow.api.application.ProjectService;
 import com.aegisflow.api.application.ReviewService;
 import com.aegisflow.api.application.SubmittedDocument;
+import com.aegisflow.api.application.identity.EnterpriseIdentityService;
 import com.aegisflow.api.domain.WorkflowState;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +51,9 @@ class SecurityRbacControllerDockerIT {
 
     @Autowired
     private ReviewService reviewService;
+
+    @Autowired
+    private EnterpriseIdentityService enterpriseIdentityService;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -206,6 +211,55 @@ class SecurityRbacControllerDockerIT {
         assertAttachmentActorWasPersisted(pmReview.reviewId(), "capacity-plan.pdf", "pm-docker-rbac");
     }
 
+    @Test
+    void enterpriseIdentityResolutionPersistsProviderAuditAndInternalAuthoritiesInPostgres() throws Exception {
+        mockMvc.perform(get("/api/auth/identity-providers"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.providerId == 'google')].authorizationPath", hasItem("/oauth2/authorization/google")));
+
+        jdbcTemplate.update(
+                """
+                        UPDATE identity_provider_configs
+                        SET enabled = TRUE, allowed_email_domains = ?
+                        WHERE provider_id = 'github'
+                        """,
+                "mnc.co.id"
+        );
+        jdbcTemplate.update(
+                """
+                        INSERT INTO role_mapping_rules (
+                            rule_id, provider_id, claim_name, claim_value, authority,
+                            priority, enabled, created_at, updated_at
+                        )
+                        VALUES (?, 'github', 'organizations', 'aegis-platform',
+                                'ROLE_SYSTEM_ANALYST', 10, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                UUID.randomUUID()
+        );
+
+        var identity = enterpriseIdentityService.resolveExternalIdentity(
+                "github",
+                "github-user-001",
+                "analyst@mnc.co.id",
+                "GitHub Analyst",
+                Map.of("organizations", java.util.List.of("aegis-platform"))
+        );
+
+        assertThat(identity.username()).isEqualTo("analyst@mnc.co.id");
+        assertPersistedCount(
+                "SELECT COUNT(*) FROM external_identities WHERE provider_id = 'github' AND username = 'analyst@mnc.co.id'",
+                1
+        );
+        assertPersistedCount(
+                "SELECT COUNT(*) FROM authorities WHERE username = 'analyst@mnc.co.id' AND authority = 'ROLE_SYSTEM_ANALYST'",
+                1
+        );
+        assertPersistedCount(
+                "SELECT COUNT(*) FROM auth_audit_events WHERE provider_id = 'github' AND event_type = 'LOGIN_SUCCESS'",
+                1
+        );
+    }
+
     private void createUser(String username, String password, String role) throws Exception {
         mockMvc.perform(post("/api/auth/users")
                         .with(httpBasic("admin", "password"))
@@ -289,5 +343,10 @@ class SecurityRbacControllerDockerIT {
                 projectId
         );
         assertThat(actualState).isEqualTo(expectedState.name());
+    }
+
+    private void assertPersistedCount(String sql, int expectedCount) {
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class);
+        assertThat(count).isEqualTo(expectedCount);
     }
 }

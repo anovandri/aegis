@@ -2,6 +2,8 @@ package com.aegisflow.api.web;
 
 import com.aegisflow.api.application.UserManagementService;
 import com.aegisflow.api.application.UserSummary;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -89,6 +91,15 @@ public class AuthController {
             userManagementService.changeOwnPassword(authentication.getName(), request.currentPassword(), request.newPassword());
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+        }
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void logout(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
         }
     }
 
